@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Link, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -16,52 +16,34 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FormField from '@/components/auth/form-field';
 import PrimaryButton from '@/components/auth/primary-button';
 import { Colors, Fonts, MarginMobile, Radius, ShadowSoft, StackMd } from '@/constants/theme';
+import { getAccountsSnapshot, subscribeToAccounts, type SavedAccount } from '@/data/auth/accounts';
 import { Image } from 'expo-image';
 
 // ============================================================================
-// 1. KRITERIA: Deklarasi Type & Array of Objects
+// Deklarasi Type & Array of Objects
 // ============================================================================
 
 /**
- * Deklarasi Custom Type untuk Data Akun Terdaftar (Saved Account)
+ * Deklarasi Custom Type untuk Data Akun Terdaftar (Saved Account).
+ * Didefinisikan di `@/data/auth/accounts` bersama store-nya; di-re-export di
+ * sini supaya import lama (`@/app/login`) tidak rusak.
+ *
+ * Array of Objects (akun bawaan + akun hasil register) disimpan di store
+ * tersebut dan dibaca lewat `useSyncExternalStore` agar form login selalu
+ * sinkron dengan data registrasi.
  */
-export type SavedAccount = {
-  id: string;
-  name: string;
-  role: string;
-  email: string;
-  pass: string;
-  icon: keyof typeof MaterialIcons.glyphMap;
-  badgeColor: string;
-};
-
-/**
- * Deklarasi Array of Objects yang berisi daftar akun untuk akses cepat
- */
-const SAVED_ACCOUNTS: SavedAccount[] = [
-  {
-    id: 'acc-1',
-    name: 'Pelanggan Setia',
-    role: 'Customer',
-    email: 'pelanggan@flowera.com',
-    pass: 'bunga123',
-    icon: 'person',
-    badgeColor: '#F8EBEC',
-  },
-  {
-    id: 'acc-2',
-    name: 'Mitra Florist',
-    role: 'Florist',
-    email: 'florist@flowera.com',
-    pass: 'florist123',
-    icon: 'storefront',
-    badgeColor: '#F3EAD2',
-  },
-];
+export type { SavedAccount };
 
 export default function LoginScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { registered } = useLocalSearchParams<{ registered?: string }>();
+
+  // Daftar akun terdaftar (bawaan + hasil register) langsung dari store.
+  const savedAccounts = useSyncExternalStore(
+    subscribeToAccounts,
+    getAccountsSnapshot,
+    getAccountsSnapshot
+  );
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -101,7 +83,7 @@ export default function LoginScreen(): React.JSX.Element {
     }
 
     // Pengecekan data input terhadap daftar akun terdaftar
-    const matchedAccount = SAVED_ACCOUNTS.find(
+    const matchedAccount = savedAccounts.find(
       (acc) => acc.email.toLowerCase() === email.trim().toLowerCase() && acc.pass === password
     );
 
@@ -206,7 +188,7 @@ export default function LoginScreen(): React.JSX.Element {
             </View>
 
             {/* ============================================================================
-                KRITERIA: Deklarasi Loop (map) pada Array of Objects + Inline & External Styles
+                Deklarasi Loop (map) pada Array of Objects + Inline & External Styles
                ============================================================================ */}
             <View style={styles.quickSection}>
               {/* Inline Style untuk label section */}
@@ -215,8 +197,8 @@ export default function LoginScreen(): React.JSX.Element {
               </Text>
 
               <View style={styles.quickList}>
-                {/* DEKLARASI LOOP: Merender Array of Objects (SAVED_ACCOUNTS) */}
-                {SAVED_ACCOUNTS.map((account: SavedAccount) => (
+                {/* DEKLARASI LOOP: Merender Array of Objects (akun terdaftar) */}
+                {savedAccounts.map((account: SavedAccount) => (
                   <TouchableOpacity
                     key={account.id}
                     // Kombinasi External Style (styles.quickCard) & Inline Style ({ backgroundColor: ... })

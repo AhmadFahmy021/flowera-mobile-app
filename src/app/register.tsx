@@ -22,7 +22,9 @@ import PasswordStrength from '@/components/auth/password-strength';
 import PrimaryButton from '@/components/auth/primary-button';
 // import { useAuth } from '@/auth/auth-context';
 import { Colors, Fonts, MarginMobile, StackMd } from '@/constants/theme';
+import { addAccount } from '@/data/auth/accounts';
 import {
+  normalizeEmail,
   validateEmail,
   validateName,
   validatePassword,
@@ -84,6 +86,13 @@ export default function RegisterScreen(): React.JSX.Element {
     setSubmitting(true);
     try {
     //   await register({ name, phone_number: phoneNumber, email, password });
+      // Simpan akun baru ke daftar akun terdaftar agar bisa dipakai login
+      // (dan muncul di daftar "Pilih Akun Terdaftar" pada layar login).
+      const account = addAccount({ name, email: normalizeEmail(email), pass: password });
+      if (!account) {
+        setFormError('Email sudah terdaftar. Silakan masuk atau pakai email lain.');
+        return;
+      }
       router.replace({ pathname: '/login', params: { registered: '1' } });
     } catch (e) {
       setFormError(e instanceof Error ? e.message : 'Registrasi gagal');

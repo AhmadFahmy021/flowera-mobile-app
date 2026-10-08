@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FormField from '@/components/auth/form-field';
 import PrimaryButton from '@/components/auth/primary-button';
 import { Colors, Fonts, MarginMobile, Radius, ShadowSoft, StackMd } from '@/constants/theme';
+import { Image } from 'expo-image';
 
 // ============================================================================
 // 1. KRITERIA: Deklarasi Type & Array of Objects
@@ -134,11 +135,15 @@ export default function LoginScreen(): React.JSX.Element {
           <View style={styles.content}>
             {/* Header / Brand Logo */}
             <View style={styles.header}>
-              <View style={styles.logoBadge}>
+              {/* <View style={styles.logoBadge}>
                 <MaterialIcons name="local-florist" size={40} color={Colors.primary} />
-              </View>
-              {/* Contoh Inline Style untuk styling tambahan pada huruf */}
-              <Text style={[styles.brandTitle, { letterSpacing: 1.5 }]}>Flowera</Text>
+              </View> */}
+              <Image
+                source={require('../../assets/images/logo.png')}
+                style={styles.logo}
+                contentFit="contain"
+              />
+              {/* <Text style={styles.brandTitle}>Flowera</Text> */}
               <Text style={styles.title}>Selamat Datang Kembali</Text>
               <Text style={styles.subtitle}>
                 Masuk ke akun kamu untuk melanjutkan belanja bunga segar.
@@ -379,5 +384,10 @@ const styles = StyleSheet.create({
   link: {
     fontFamily: Fonts.bodyBold,
     color: Colors.primary,
+  },
+  logo: {
+    height: 28,
+    width: 198,
+    marginBottom: 12,
   },
 });

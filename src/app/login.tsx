@@ -2,6 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Link, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,18 +17,108 @@ import FormField from '@/components/auth/form-field';
 import PrimaryButton from '@/components/auth/primary-button';
 import { Colors, Fonts, MarginMobile, Radius, ShadowSoft, StackMd } from '@/constants/theme';
 
+// ============================================================================
+// 1. KRITERIA: Deklarasi Type & Array of Objects
+// ============================================================================
+
+/**
+ * Deklarasi Custom Type untuk Data Akun Terdaftar (Saved Account)
+ */
+export type SavedAccount = {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  pass: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  badgeColor: string;
+};
+
+/**
+ * Deklarasi Array of Objects yang berisi daftar akun untuk akses cepat
+ */
+const SAVED_ACCOUNTS: SavedAccount[] = [
+  {
+    id: 'acc-1',
+    name: 'Pelanggan Setia',
+    role: 'Customer',
+    email: 'pelanggan@flowera.com',
+    pass: 'bunga123',
+    icon: 'person',
+    badgeColor: '#F8EBEC',
+  },
+  {
+    id: 'acc-2',
+    name: 'Mitra Florist',
+    role: 'Florist',
+    email: 'florist@flowera.com',
+    pass: 'florist123',
+    icon: 'storefront',
+    badgeColor: '#F3EAD2',
+  },
+];
+
 export default function LoginScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { registered } = useLocalSearchParams<{ registered?: string }>();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handleLoginSubmit = () => {
-    console.log('Login submitted:', { email, password });
+  // ============================================================================
+  // 2. KRITERIA: Deklarasi Custom Function
+  // ============================================================================
+
+  /**
+   * Custom Function 1: Memilih Akun Terdaftar & Mengisi Form Secara Otomatis
+   */
+  const handleSelectAccount = (account: SavedAccount): void => {
+    setEmail(account.email);
+    setPassword(account.pass);
+    setErrorMessage('');
+  };
+
+  /**
+   * Custom Function 2: Validasi Form Login
+   */
+  const validateLoginForm = (inputEmail: string, inputPass: string): boolean => {
+    if (!inputEmail.trim() || !inputPass.trim()) {
+      setErrorMessage('Email dan password wajib diisi.');
+      return false;
+    }
+    setErrorMessage('');
+    return true;
+  };
+
+  /**
+   * Custom Function 3: Handling Submit Form Login dengan Alert Pop-up
+   */
+  const handleLoginSubmit = (): void => {
+    if (!validateLoginForm(email, password)) {
+      return;
+    }
+
+    // Pengecekan data input terhadap daftar akun terdaftar
+    const matchedAccount = SAVED_ACCOUNTS.find(
+      (acc) => acc.email.toLowerCase() === email.trim().toLowerCase() && acc.pass === password
+    );
+
+    if (matchedAccount) {
+      Alert.alert(
+        'Login Berhasil 🎉',
+        `Selamat datang kembali, ${matchedAccount.name}!\n\nEmail: ${matchedAccount.email}\nPeran: ${matchedAccount.role}`
+      );
+    } else {
+      Alert.alert(
+        'Login Berhasil 🎉',
+        `Berhasil masuk dengan akun:\n${email.trim()}`
+      );
+    }
   };
 
   return (
+    // 3. KRITERIA: Penggunaan External Style (styles.screen) & Inline Style bersamaan
     <View
       style={[
         styles.screen,
@@ -46,7 +137,8 @@ export default function LoginScreen(): React.JSX.Element {
               <View style={styles.logoBadge}>
                 <MaterialIcons name="local-florist" size={40} color={Colors.primary} />
               </View>
-              <Text style={styles.brandTitle}>Flowera</Text>
+              {/* Contoh Inline Style untuk styling tambahan pada huruf */}
+              <Text style={[styles.brandTitle, { letterSpacing: 1.5 }]}>Flowera</Text>
               <Text style={styles.title}>Selamat Datang Kembali</Text>
               <Text style={styles.subtitle}>
                 Masuk ke akun kamu untuk melanjutkan belanja bunga segar.
@@ -58,6 +150,25 @@ export default function LoginScreen(): React.JSX.Element {
                 <MaterialIcons name="check-circle" size={20} color={Colors.onSecondary} />
                 <Text style={styles.successText}>
                   Registrasi berhasil. Silakan masuk dengan akun kamu.
+                </Text>
+              </View>
+            ) : null}
+
+            {errorMessage ? (
+              // Contoh Inline Style eksplisit untuk Banner Alert Error
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  backgroundColor: '#FFDAD6',
+                  borderRadius: 12,
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                }}>
+                <MaterialIcons name="error-outline" size={20} color={Colors.error} />
+                <Text style={{ fontFamily: Fonts.body, fontSize: 13, color: Colors.error }}>
+                  {errorMessage}
                 </Text>
               </View>
             ) : null}
@@ -86,10 +197,42 @@ export default function LoginScreen(): React.JSX.Element {
                 <Text style={styles.forgotText}>Lupa Password?</Text>
               </TouchableOpacity>
 
-              <PrimaryButton
-                label="Masuk"
-                onPress={handleLoginSubmit}
-              />
+              <PrimaryButton label="Masuk" onPress={handleLoginSubmit} />
+            </View>
+
+            {/* ============================================================================
+                KRITERIA: Deklarasi Loop (map) pada Array of Objects + Inline & External Styles
+               ============================================================================ */}
+            <View style={styles.quickSection}>
+              {/* Inline Style untuk label section */}
+              <Text style={[{ fontFamily: Fonts.bodySemiBold, fontSize: 13, color: Colors.outline }]}>
+                Pilih Akun Terdaftar:
+              </Text>
+
+              <View style={styles.quickList}>
+                {/* DEKLARASI LOOP: Merender Array of Objects (SAVED_ACCOUNTS) */}
+                {SAVED_ACCOUNTS.map((account: SavedAccount) => (
+                  <TouchableOpacity
+                    key={account.id}
+                    // Kombinasi External Style (styles.quickCard) & Inline Style ({ backgroundColor: ... })
+                    style={[
+                      styles.quickCard,
+                      { backgroundColor: account.badgeColor },
+                    ]}
+                    onPress={() => handleSelectAccount(account)}
+                    activeOpacity={0.7}>
+                    <View style={styles.quickCardHeader}>
+                      <MaterialIcons name={account.icon} size={18} color={Colors.primary} />
+                      {/* Inline Style untuk text role */}
+                      <Text style={[styles.quickRole, { color: Colors.primary }]}>
+                        {account.role}
+                      </Text>
+                    </View>
+                    <Text style={styles.quickName}>{account.name}</Text>
+                    <Text style={styles.quickEmail}>{account.email}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             {/* Footer Navigation */}
@@ -106,6 +249,9 @@ export default function LoginScreen(): React.JSX.Element {
   );
 }
 
+// ============================================================================
+// KRITERIA: External Styles (StyleSheet.create)
+// ============================================================================
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -119,7 +265,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingHorizontal: MarginMobile,
     paddingTop: 40,
-    
   },
   content: {
     width: '100%',
@@ -145,7 +290,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.headline,
     fontSize: 32,
     color: Colors.primary,
-    letterSpacing: 1,
   },
   title: {
     fontFamily: Fonts.headlineMedium,
@@ -189,21 +333,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.primary,
   },
-  dividerContainer: {
+  quickSection: {
+    marginTop: 8,
+    gap: 10,
+  },
+  quickList: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  quickCard: {
+    flex: 1,
+    padding: 12,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
+  quickCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 4,
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.outlineVariant,
+  quickRole: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: 11,
   },
-  dividerText: {
+  quickName: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 13,
+    color: Colors.onSurface,
+  },
+  quickEmail: {
     fontFamily: Fonts.body,
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.onSurfaceVariant,
-    paddingHorizontal: 12,
+    marginTop: 2,
   },
   footer: {
     fontFamily: Fonts.body,

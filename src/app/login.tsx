@@ -89,12 +89,12 @@ export default function LoginScreen(): React.JSX.Element {
 
     if (matchedAccount) {
       Alert.alert(
-        'Login Berhasil 🎉',
+        'Login Berhasil ',
         `Selamat datang kembali, ${matchedAccount.name}!\n\nEmail: ${matchedAccount.email}\nPeran: ${matchedAccount.role}`
       );
     } else {
       Alert.alert(
-        'Login Berhasil 🎉',
+        'Login Berhasil ',
         `Berhasil masuk dengan akun:\n${email.trim()}`
       );
     }

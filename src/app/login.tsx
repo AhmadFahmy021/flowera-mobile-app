@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import React, { useState, useSyncExternalStore } from 'react';
 import {
   Alert,
@@ -87,17 +87,14 @@ export default function LoginScreen(): React.JSX.Element {
       (acc) => acc.email.toLowerCase() === email.trim().toLowerCase() && acc.pass === password
     );
 
-    if (matchedAccount) {
-      Alert.alert(
-        'Login Berhasil ',
-        `Selamat datang kembali, ${matchedAccount.name}!\n\nEmail: ${matchedAccount.email}\nPeran: ${matchedAccount.role}`
-      );
-    } else {
-      Alert.alert(
-        'Login Berhasil ',
-        `Berhasil masuk dengan akun:\n${email.trim()}`
-      );
-    }
+    const greeting = matchedAccount
+      ? `Selamat datang kembali, ${matchedAccount.name}!\n\nEmail: ${matchedAccount.email}\nPeran: ${matchedAccount.role}`
+      : `Berhasil masuk dengan akun:\n${email.trim()}`;
+
+    Alert.alert('Login Berhasil ', greeting);
+
+    // Arahkan ke home; detail produk dibuka dari kartu produk di home
+    router.replace('/home');
   };
 
   return (

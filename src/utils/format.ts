@@ -1,8 +1,3 @@
-/**
- * Format angka menjadi mata uang Rupiah — padanan `utils/format.ts` di web
- * (`Intl.NumberFormat` dengan gaya currency IDR tanpa desimal).
- */
-
 const rupiahFormatter = new Intl.NumberFormat('id-ID', {
   style: 'currency',
   currency: 'IDR',

@@ -6,7 +6,6 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-/** Buang spasi/dash supaya "0812-3456 7890" dikirim sebagai "081234567890". */
 export function normalizePhoneNumber(phone: string): string {
   return phone.replace(/[\s-]/g, '').trim();
 }

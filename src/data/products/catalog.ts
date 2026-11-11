@@ -1,15 +1,3 @@
-/**
- * Data produk untuk home & halaman detail (`/product/[id]`).
- *
- * Bentuk data sengaja mengikuti respons `GET /api/user/product/detail/:id`
- * di web (`product`, `product_variant`, `addon_product`, `store`) dan
- * ditambah field tampilan ala marketplace (terjual, rating toko, ulasan).
- * `fetchProductById` async supaya bisa diganti panggilan API tanpa mengubah
- * layar. Katalog masih in-memory seperti `@/data/auth/accounts`.
- */
-
-/* ──────────────────────────── Types ──────────────────────────── */
-
 export interface ProductImage {
   id: number;
   imageUrl: string;
@@ -48,20 +36,15 @@ export interface ProductRecord {
   id: number;
   name: string;
   slug: string;
-  /** Kategori untuk chip "Belanja Sesuai Kebutuhan" di home. */
   category: string;
   price: number;
   description: string;
   rating: number;
   isLifeFlower: boolean;
-  /** Jumlah produk terjual, ditampilkan di blok harga. */
   sold: number;
-  /** Rating & jumlah penilai toko, ditampilkan pada pill di atas gambar. */
   storeRating: number;
   storeReviewers: number;
-  /** 3 keunggulan singkat yang tampil di overlay gambar. */
   highlights: string[];
-  /** Label promo di samping harga (mis. "Dengan Voucher"). */
   voucherLabel?: string;
   images: ProductImage[];
   variants: ProductVariant[];
@@ -69,8 +52,6 @@ export interface ProductRecord {
   reviews: ProductReview[];
   store: ProductStore;
 }
-
-/* ──────────────────────────── Gambar (sama dengan aset web) ──────────────────────────── */
 
 const SEASONAL_BLOOM_IMAGE =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuCHU-MNzSwSUbbUPvKZvCkAJnjjr1Q74pczA_BThQ1vmUXiAhigqFmfVM6UJBm6PKYLM6lwwR3NMrcTTLt9dYI6OdgW0NKTbW4t9TA8qu-ZUJaBia7VZ6ym3L57bQlqRQnEc0s2CL8xzuJjMzuFph9CXFRr3tv-TDqJl2Ju2inAm_6q0EVgsVwlto2C5UtHP0eocusr5WBn4VLNDYxwoz6p-itwOP7TBGSVeE-XuAy14jdF2ULjhxN4qEUGFGCz-m7liS_ZWUqg-1Y';
@@ -87,9 +68,6 @@ const ROSES_IMAGE =
 const TULIPS_IMAGE =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuDWjPJUIvA_CiWBA_DPTi_zwPbeE7INrhYaCdH7shUD5MgdLN6pFxP4AmjA-LQYBfgrhizB1Y3Lj4tZB3ETUG5B8Nc8IdQiG3kAJa0upreULqo8JWeb2ElL7jH8fk1rdzFuIoRigRmGgj2MGGWpmjBGPKPKZHHi9q72gBRvaaDX7_A5DDhIzYw5VVvQFbVezYwHKcG6dRYMNXt34eIsZ9UX2A5N4FcP6hjc9rDBVSpHjnMAY5iHGWRpQNo6-SnkJRdPzDlJKw-p8PI';
 
-/* ──────────────────────────── Katalog ──────────────────────────── */
-
-/** Array of Objects produk yang bisa dibuka lewat `/product/<id>`. */
 export const PRODUCT_CATALOG: ProductRecord[] = [
   {
     id: 1,
@@ -279,9 +257,6 @@ export const PRODUCT_CATALOG: ProductRecord[] = [
   },
 ];
 
-/* ──────────────────────────── Hero beranda ──────────────────────────── */
-
-/** Satu slide carousel beranda (judul & deskripsi sama dengan versi web). */
 export interface HeroSlide {
   id: number;
   title: string;
@@ -316,15 +291,6 @@ export const HERO_SLIDES: HeroSlide[] = [
   },
 ];
 
-/* ──────────────────────────── Loader ──────────────────────────── */
-
-/**
- * Mengambil satu produk berdasarkan id dari URL (`/product/[id]`).
- *
- * Fungsi dibuat `async` supaya layar sudah memakai alur loading/error yang
- * sama seperti web; saat API siap, isi fungsi tinggal diganti `fetch`.
- * Mengembalikan `null` bila id tidak valid atau produk tidak ada.
- */
 export async function fetchProductById(id: string): Promise<ProductRecord | null> {
   const productId = Number.parseInt(id, 10);
   if (Number.isNaN(productId)) return null;

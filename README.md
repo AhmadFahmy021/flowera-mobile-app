@@ -25,6 +25,19 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Backend API
+
+Beranda memuat kategori, produk, dan florist dari Flowera REST API
+(`GET /api/user/home`). Alamat API default diturunkan dari host Metro
+(`http://<host-metro>:3001/api`) agar perangkat fisik bisa mengakses backend
+di LAN. Override bila backend berjalan di host lain:
+
+```bash
+EXPO_PUBLIC_API_URL=http://192.168.1.10:3001/api npx expo start
+```
+
+`EXPO_PUBLIC_FILE_URL` mengatur origin gambar upload; default-nya origin API.
+
 ## Get a fresh project
 
 When you're ready, run:

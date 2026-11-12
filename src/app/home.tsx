@@ -1,0 +1,1001 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+  type GestureResponderEvent,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import {
+  Colors,
+  Fonts,
+  MarginMobile,
+  Radius,
+  ShadowSoft,
+  StackLg,
+  StackMd,
+} from '@/constants/theme';
+import type { HomeProduct, HomeStore } from '@/data/home/api';
+import { useCategoryProducts, useHomeData } from '@/data/home/use-home-data';
+import { HERO_SLIDES } from '@/data/products/catalog';
+import { formatRupiah } from '@/utils/format';
+
+const logo = require('../../assets/images/flowera-logo.png');
+
+type ExploreTab = 'products' | 'florists';
+
+type NavItem = {
+  key: 'home' | 'orders' | 'profile';
+  icon: keyof typeof MaterialIcons.glyphMap;
+  label: string;
+};
+
+const BOTTOM_NAV_HEIGHT = 71;
+const HERO_INTERVAL_MS = 15000;
+const SEARCH_DEBOUNCE_MS = 300;
+
+const NAV_ITEMS: NavItem[] = [
+  { key: 'home', icon: 'home', label: 'Home' },
+  { key: 'orders', icon: 'shopping-bag', label: 'Orders' },
+  { key: 'profile', icon: 'person', label: 'Profile' },
+];
+
+const NO_PRODUCTS: HomeProduct[] = [];
+
+export default function HomeScreen(): React.JSX.Element {
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+
+  const scrollRef = useRef<ScrollView>(null);
+  const catalogOffset = useRef<number>(0);
+  const [translateX] = useState(() => new Animated.Value(0));
+
+  const [currentSlide, setCurrentSlide] = useState<number>(0);
+  const [activeCategory, setActiveCategory] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<ExploreTab>('products');
+  const [savedIds, setSavedIds] = useState<number[]>([]);
+  const [query, setQuery] = useState<string>('');
+  const [debouncedQuery, setDebouncedQuery] = useState<string>('');
+
+  const {
+    data: homeData,
+    isLoading: isHomeLoading,
+    error: homeError,
+    reload: reloadHome,
+  } = useHomeData();
+
+  const categories = homeData?.categories ?? [];
+  const allProducts = homeData?.products ?? NO_PRODUCTS;
+  const florists = homeData?.stores ?? [];
+
+  const {
+    products: categoryProducts,
+    isLoading: isCategoryLoading,
+    error: categoryError,
+    reload: reloadCategory,
+  } = useCategoryProducts(activeCategory, allProducts);
+
+  const slideWidth = Math.max(windowWidth - MarginMobile * 2, 0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide((previous) => (previous + 1) % HERO_SLIDES.length);
+    }, HERO_INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(()=>{
+    const timer = setTimeout(()=>{
+      setDebouncedQuery(query);
+    },SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  },[query]);
+
+  useEffect(() => {
+    Animated.timing(translateX, {
+      toValue: -currentSlide * slideWidth,
+      duration: 700,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [currentSlide, slideWidth, translateX]);
+
+  const products = useMemo<HomeProduct[]>(() => {
+    const keyword = debouncedQuery.trim().toLowerCase();
+    const base = activeCategory === null ? allProducts : categoryProducts ?? [];
+
+    return base.filter(
+      (product) => keyword === '' || product.name.toLowerCase().includes(keyword)
+    );
+  }, [activeCategory, allProducts, categoryProducts, debouncedQuery]);
+
+  const isProductsLoading = activeCategory === null ? isHomeLoading : isCategoryLoading;
+  const productsError = activeCategory === null ? homeError : categoryError;
+  const retryProducts = activeCategory === null ? reloadHome : reloadCategory;
+
+  const handleOpenProduct = (product: HomeProduct): void => {
+    router.push({
+      pathname: '/product/[id]',
+      params: { id: String(product.id), source: 'home' },
+    });
+  };
+
+  const handleToggleSaved = (productId: number): void => {
+    setSavedIds((previous) =>
+      previous.includes(productId)
+        ? previous.filter((savedId) => savedId !== productId)
+        : [...previous, productId]
+    );
+  };
+
+  const handleShopCollection = (): void => {
+    scrollRef.current?.scrollTo({ y: catalogOffset.current, animated: true });
+  };
+
+  const handleCustomBouquet = (): void => {
+    Alert.alert('Custom Bouquet', 'Fitur custom bouquet belum tersedia di aplikasi.');
+  };
+
+  const handleOpenOrders = (): void => {
+    Alert.alert('Pesanan', 'Halaman pesanan belum tersedia.');
+  };
+
+  const handleNavPress = (key: NavItem['key']): void => {
+    if (key === 'home') {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+    if (key === 'orders') {
+      router.push('/order');
+      return;
+    }
+    router.push('/profile');
+  };
+
+  return (
+    <View style={styles.screen}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <Image source={logo} style={styles.logo} contentFit="contain" />
+      </View>
+
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(insets.bottom, 0) + BOTTOM_NAV_HEIGHT + StackMd },
+        ]}
+        showsVerticalScrollIndicator={false}>
+        <View style={styles.hero}>
+          <Animated.View
+            style={[
+              styles.heroTrack,
+              {
+                width: slideWidth * HERO_SLIDES.length,
+                transform: [{ translateX }],
+              },
+            ]}>
+            {HERO_SLIDES.map((slide) => (
+              <View key={slide.id} style={[styles.heroSlide, { width: slideWidth }]}>
+                <Image
+                  source={{ uri: slide.imageUrl }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={200}
+                />
+                <LinearGradient
+                  colors={['rgba(32, 26, 27, 0.6)', 'rgba(32, 26, 27, 0)']}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.heroBody}>
+                  <Text style={styles.heroTitle}>
+                    {slide.title}
+                    {'\n'}
+                    <Text style={styles.heroSubtitle}>{slide.subtitle}</Text>
+                  </Text>
+                  <Text style={styles.heroDescription}>{slide.description}</Text>
+                  <TouchableOpacity
+                    style={styles.heroButton}
+                    onPress={handleShopCollection}
+                    activeOpacity={0.85}>
+                    <Text style={styles.heroButtonLabel}>Shop The Collection</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </Animated.View>
+
+          <View style={styles.heroDots}>
+            {HERO_SLIDES.map((slide, index) => (
+              <TouchableOpacity
+                key={slide.id}
+                onPress={() => setCurrentSlide(index)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Slide ${index + 1}`}
+                style={[styles.heroDot, index === currentSlide ? styles.heroDotActive : null]}
+              />
+            ))}
+          </View>
+        </View>
+
+        <View
+          style={styles.catalogBlock}
+          onLayout={(event) => {
+            catalogOffset.current = event.nativeEvent.layout.y;
+          }}>
+          <View style={styles.searchBox}>
+            <MaterialIcons name="search" size={20} color={Colors.outline} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Cari bunga..."
+              placeholderTextColor={Colors.outline}
+              style={styles.searchInput}
+            />
+            {query.length > 0 ? (
+              <TouchableOpacity onPress={() => setQuery('')} activeOpacity={0.7}>
+                <MaterialIcons name="close" size={18} color={Colors.outline} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Belanja Sesuai Kebutuhan</Text>
+            <TouchableOpacity onPress={() => setActiveCategory(null)} activeOpacity={0.7}>
+              <Text style={styles.sectionLink}>Lihat Semua</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsRow}>
+            <CategoryChip
+              label="Semua"
+              active={activeCategory === null}
+              onPress={() => setActiveCategory(null)}
+            />
+            {categories.map((category) => (
+              <CategoryChip
+                key={category.id}
+                label={category.title}
+                active={activeCategory === category.id}
+                onPress={() => setActiveCategory(category.id)}
+              />
+            ))}
+            <TouchableOpacity
+              style={[styles.chip, styles.chipCustom]}
+              onPress={handleCustomBouquet}
+              activeOpacity={0.85}>
+              <MaterialIcons name="brush" size={16} color={Colors.onPrimary} />
+              <Text style={styles.chipLabelActive}>Custom Bouquet</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
+        <View style={styles.explore}>
+          <View style={styles.tabs}>
+            <TabButton
+              label="Trending Bouquets"
+              active={activeTab === 'products'}
+              onPress={() => setActiveTab('products')}
+            />
+            <TabButton
+              label="Nearby Florists"
+              active={activeTab === 'florists'}
+              onPress={() => setActiveTab('florists')}
+            />
+          </View>
+
+          {activeTab === 'products' ? (
+            isProductsLoading ? (
+              <LoadingCard label="Memuat produk..." />
+            ) : productsError ? (
+              <ErrorCard message={productsError} onRetry={retryProducts} />
+            ) : products.length === 0 ? (
+              <View style={styles.emptyState}>
+                <MaterialIcons name="search-off" size={64} color={Colors.outline} />
+                <Text style={styles.emptyTitle}>Belum ada produk di kategori ini</Text>
+                <Text style={styles.emptyText}>
+                  Coba pilih kategori lain atau lihat semua produk.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.productGrid}>
+                {products.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    isSaved={savedIds.includes(product.id)}
+                    onPress={() => handleOpenProduct(product)}
+                    onToggleSaved={handleToggleSaved}
+                  />
+                ))}
+              </View>
+            )
+          ) : isHomeLoading ? (
+            <LoadingCard label="Memuat florist..." />
+          ) : homeError ? (
+            <ErrorCard message={homeError} onRetry={reloadHome} />
+          ) : florists.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="storefront" size={64} color={Colors.outline} />
+              <Text style={styles.emptyTitle}>Belum ada florist</Text>
+              <Text style={styles.emptyText}>Belum ada toko florist yang terdaftar.</Text>
+            </View>
+          ) : (
+            <View style={styles.floristList}>
+              {florists.map((florist) => (
+                <FloristCard
+                  key={florist.id}
+                  florist={florist}
+                  onVisit={() => Alert.alert('Toko', `Halaman ${florist.name} belum tersedia.`)}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        {NAV_ITEMS.map((item) => {
+          const isActive = item.key === 'home';
+          return (
+            <TouchableOpacity
+              key={item.key}
+              style={[styles.navItem, isActive ? styles.navItemActive : null]}
+              onPress={() => handleNavPress(item.key)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}>
+              <MaterialIcons
+                name={item.icon}
+                size={24}
+                color={isActive ? Colors.primary : Colors.onSurfaceVariant}
+              />
+              <Text style={[styles.navLabel, isActive ? styles.navLabelActive : null]}>
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function CategoryChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}): React.JSX.Element {
+  return (
+    <TouchableOpacity
+      style={[styles.chip, active ? styles.chipActive : null]}
+      onPress={onPress}
+      activeOpacity={0.85}>
+      <Text style={[styles.chipLabel, active ? styles.chipLabelActive : null]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function TabButton({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}): React.JSX.Element {
+  return (
+    <TouchableOpacity
+      style={[styles.tabButton, active ? styles.tabButtonActive : null]}
+      onPress={onPress}
+      activeOpacity={0.85}>
+      <Text style={[styles.tabLabel, active ? styles.tabLabelActive : null]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function LoadingCard({ label }: { label: string }): React.JSX.Element {
+  return (
+    <View style={styles.emptyState}>
+      <ActivityIndicator color={Colors.primary} />
+      <Text style={styles.emptyText}>{label}</Text>
+    </View>
+  );
+}
+
+function ErrorCard({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}): React.JSX.Element {
+  return (
+    <View style={styles.emptyState}>
+      <MaterialIcons name="cloud-off" size={56} color={Colors.outline} />
+      <Text style={styles.emptyTitle}>Gagal Memuat Data</Text>
+      <Text style={styles.emptyText}>{message}</Text>
+      <TouchableOpacity
+        style={styles.retryButton}
+        onPress={onRetry}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Coba lagi">
+        <Text style={styles.retryLabel}>Coba Lagi</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function ProductCard({
+  product,
+  isSaved,
+  onPress,
+  onToggleSaved,
+}: {
+  product: HomeProduct;
+  isSaved: boolean;
+  onPress: () => void;
+  onToggleSaved: (productId: number) => void;
+}): React.JSX.Element {
+  const handleFavoritePress = (event: GestureResponderEvent): void => {
+    event.stopPropagation();
+    onToggleSaved(product.id);
+  };
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
+      <View style={styles.cardImageWrap}>
+        {product.imageUrl ? (
+          <Image
+            source={{ uri: product.imageUrl }}
+            style={styles.cardImage}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          <View style={styles.cardImageFallback}>
+            <MaterialIcons name="local-florist" size={48} color={Colors.outline} />
+          </View>
+        )}
+        <TouchableOpacity
+          style={styles.favoriteButton}
+          onPress={handleFavoritePress}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={isSaved ? 'Hapus dari favorit' : 'Simpan ke favorit'}>
+          <MaterialIcons
+            name={isSaved ? 'favorite' : 'favorite-border'}
+            size={20}
+            color={Colors.error}
+          />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.cardBody}>
+        <Text style={styles.cardName} numberOfLines={1}>
+          {product.name}
+        </Text>
+
+        <View style={styles.cardFloristRow}>
+          <MaterialIcons name="verified" size={16} color={Colors.secondary} />
+          <Text style={styles.cardFlorist} numberOfLines={1}>
+            {product.store?.name ?? 'Flowera Partner'}
+          </Text>
+        </View>
+
+        <View style={styles.cardPriceRow}>
+          <Text style={styles.cardPrice}>{formatRupiah(product.price)}</Text>
+          <View style={styles.cardRating}>
+            <MaterialIcons name="star" size={16} color={Colors.star} />
+            <Text style={styles.cardRatingText}>{product.rating.toFixed(1)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardFooter}>
+          <View style={styles.cardLocation}>
+            <MaterialIcons name="location-on" size={14} color={Colors.outline} />
+            <Text style={styles.cardFooterText} numberOfLines={1}>
+              {product.store?.city ?? 'Lokasi belum tersedia'}
+            </Text>
+          </View>
+          <Text style={styles.cardFooterText}>
+            {product.isLifeFlower ? 'Bunga segar' : 'Bunga artifisial'}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function FloristCard({
+  florist,
+  onVisit,
+}: {
+  florist: HomeStore;
+  onVisit: () => void;
+}): React.JSX.Element {
+  return (
+    <View style={styles.floristCard}>
+      <View style={styles.floristHeader}>
+        <View style={styles.floristAvatar}>
+          {florist.logoUrl ? (
+            <Image
+              source={{ uri: florist.logoUrl }}
+              style={styles.floristAvatarImage}
+              contentFit="cover"
+            />
+          ) : (
+            <MaterialIcons name="storefront" size={30} color={Colors.primary} />
+          )}
+        </View>
+        <View style={styles.floristInfo}>
+          <Text style={styles.floristName}>{florist.name}</Text>
+          <Text style={styles.floristLocation}>{florist.city} • Mitra Flowera</Text>
+        </View>
+      </View>
+      <TouchableOpacity style={styles.floristButton} onPress={onVisit} activeOpacity={0.85}>
+        <Text style={styles.floristButtonLabel}>Visit Shop</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    paddingHorizontal: MarginMobile,
+    paddingBottom: 12,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(215, 193, 197, 0.35)',
+  },
+  logo: {
+    width: 199,
+    height: 28,
+  },
+
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: MarginMobile,
+    paddingTop: StackMd,
+    gap: StackLg,
+  },
+
+  hero: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+    backgroundColor: Colors.surfaceContainerLow,
+    ...ShadowSoft,
+  },
+  heroTrack: {
+    flexDirection: 'row',
+    height: '100%',
+  },
+  heroSlide: {
+    height: '100%',
+    justifyContent: 'center',
+    paddingHorizontal: StackMd,
+  },
+  heroBody: {
+    maxWidth: 300,
+  },
+  heroTitle: {
+    marginBottom: 8,
+    fontFamily: Fonts.headline,
+    fontSize: 20,
+    lineHeight: 26,
+    color: Colors.onPrimary,
+  },
+  heroSubtitle: {
+    color: Colors.primaryFixed,
+  },
+  heroDescription: {
+    marginBottom: 16,
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.onPrimary,
+    opacity: 0.9,
+  },
+  heroButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primaryContainer,
+  },
+  heroButtonLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 12,
+    color: Colors.onPrimaryContainer,
+  },
+  heroDots: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: StackMd,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  heroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  heroDotActive: {
+    width: 32,
+    backgroundColor: Colors.onPrimary,
+  },
+
+  catalogBlock: {
+    gap: 16,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  sectionTitle: {
+    flexShrink: 1,
+    fontFamily: Fonts.headlineMedium,
+    fontSize: 20,
+    color: Colors.onSurface,
+  },
+  sectionLink: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 12,
+    color: Colors.primary,
+  },
+    searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 193, 197, 0.5)',
+    backgroundColor: Colors.surfaceContainerLowest,
+  },
+  searchInput: {
+    flex: 1,
+    padding: 0,
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    color: Colors.onSurface,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 193, 197, 0.5)',
+    backgroundColor: Colors.surface,
+  },
+  chipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
+  },
+  chipCustom: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
+  },
+  chipLabel: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: 14,
+    color: Colors.onSurface,
+  },
+  chipLabelActive: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: 14,
+    color: Colors.onPrimary,
+  },
+
+  explore: {
+    gap: StackMd,
+  },
+  tabs: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    gap: 8,
+    padding: 4,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 193, 197, 0.35)',
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  tabButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: Radius.sm,
+  },
+  tabButtonActive: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    ...ShadowSoft,
+  },
+  tabLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 14,
+    color: Colors.onSurfaceVariant,
+  },
+  tabLabelActive: {
+    color: Colors.primary,
+  },
+
+  productGrid: {
+    gap: StackMd,
+  },
+  card: {
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceContainerLowest,
+    overflow: 'hidden',
+    ...ShadowSoft,
+  },
+  cardImageWrap: {
+    aspectRatio: 1,
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardImageFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  favoriteButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    padding: 8,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  cardBody: {
+    padding: 16,
+  },
+  cardName: {
+    fontFamily: Fonts.headlineMedium,
+    fontSize: 18,
+    color: Colors.onSurface,
+  },
+  cardFloristRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  cardFlorist: {
+    flexShrink: 1,
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: Colors.onSurfaceVariant,
+  },
+  cardPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 8,
+  },
+  cardPrice: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: 18,
+    color: Colors.primary,
+  },
+  cardRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cardRatingText: {
+    fontFamily: Fonts.bodyMedium,
+    fontSize: 12,
+    color: Colors.onSurface,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(215, 193, 197, 0.3)',
+  },
+  cardLocation: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cardFooterText: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
+    color: Colors.outline,
+  },
+
+  emptyState: {
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: StackMd,
+    paddingVertical: StackLg,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 193, 197, 0.35)',
+    backgroundColor: Colors.surfaceContainerLowest,
+    ...ShadowSoft,
+  },
+  emptyTitle: {
+    fontFamily: Fonts.headlineMedium,
+    fontSize: 18,
+    color: Colors.onSurface,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.onSurfaceVariant,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
+  },
+  retryLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 13,
+    color: Colors.onPrimary,
+  },
+
+  floristList: {
+    gap: StackMd,
+  },
+  floristCard: {
+    padding: StackMd,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 193, 197, 0.35)',
+    backgroundColor: Colors.surfaceContainerLowest,
+    ...ShadowSoft,
+  },
+  floristHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 16,
+  },
+  floristAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: Radius.full,
+    borderWidth: 2,
+    borderColor: Colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  floristAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: Radius.full,
+  },
+  floristInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  floristName: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 14,
+    color: Colors.onSurface,
+  },
+  floristLocation: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: Colors.outline,
+  },
+  floristButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.secondary,
+  },
+  floristButtonLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 12,
+    color: Colors.secondary,
+  },
+
+  bottomNav: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Radius.md,
+    borderTopRightRadius: Radius.md,
+    shadowColor: '#1f4d2e',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 8,
+  },
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+  },
+  navItemActive: {
+    backgroundColor: 'rgba(245, 163, 183, 0.2)',
+  },
+  navLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 10,
+    color: Colors.onSurfaceVariant,
+  },
+  navLabelActive: {
+    color: Colors.primary,
+  },
+});

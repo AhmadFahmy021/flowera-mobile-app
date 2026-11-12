@@ -1,36 +1,23 @@
-/**
- * Design tokens Flowera — diport dari `@theme` di app/globals.css web base.
- * Semua nilai warna/spacing di bawah sengaja sama persis dengan versi web
- * supaya tampilan mobile identik.
- */
-
 import { Platform, StyleSheet, ViewStyle } from 'react-native';
 
-/* ──────────────────────────── Warna ──────────────────────────── */
-
 export const Colors = {
-  /* Primary */
   primary: '#8c4a5c',
   onPrimary: '#ffffff',
   primaryContainer: '#f5a3b7',
   onPrimaryContainer: '#743648',
   primaryFixed: '#ffd9e0',
 
-  /* Secondary */
   secondary: '#3a6847',
   onSecondary: '#ffffff',
   secondaryContainer: '#b9ecc1',
 
-  /* Tertiary */
   tertiary: '#735c00',
   tertiaryContainer: '#dcb63e',
 
-  /* Error */
   error: '#ba1a1a',
   onError: '#ffffff',
   errorContainer: '#ffdad6',
 
-  /* Surface */
   surface: '#fff8f7',
   onSurface: '#201a1b',
   surfaceVariant: '#ecdfe1',
@@ -41,22 +28,14 @@ export const Colors = {
   surfaceContainerHighest: '#ecdfe1',
   surfaceContainerLowest: '#ffffff',
 
-  /* Background & Outline */
   background: '#fff8f7',
   onBackground: '#201a1b',
   outline: '#847376',
   outlineVariant: '#d7c1c5',
 
-  /* Aksen tambahan (dipakai kartu produk di web) */
   star: '#FFB129',
 } as const;
 
-/* ──────────────────────────── Font ──────────────────────────── */
-
-/**
- * Nama family mengikuti export @expo-google-fonts (lihat app/_layout.tsx).
- * Web: Playfair Display = headline, Montserrat = body.
- */
 export const Fonts = {
   headline: 'PlayfairDisplay_700Bold',
   headlineMedium: 'PlayfairDisplay_500Medium',
@@ -68,9 +47,6 @@ export const Fonts = {
   bodySemiBold: 'Montserrat_600SemiBold',
   bodyBold: 'Montserrat_700Bold',
 } as const;
-
-/* ──────────────────────────── Spacing ──────────────────────────── */
-/* Sesuai token web: stack-sm 12, stack-md 24, stack-lg 48, margin-mobile 20 */
 
 export const Spacing = {
   half: 4,
@@ -90,8 +66,6 @@ export const MarginMobile = 20;
 
 export const MaxContentWidth = 800;
 
-/* ──────────────────────────── Radius ──────────────────────────── */
-
 export const Radius = {
   sm: 8,
   md: 12,
@@ -100,14 +74,6 @@ export const Radius = {
   full: 999,
 } as const;
 
-/* ──────────────────────────── Shadow ──────────────────────────── */
-
-/**
- * Padanan dari `shadow-soft` dan `shadow-float` di globals.css web:
- *   soft  → 0 4px 20px -2px rgba(31, 77, 46, 0.08)
- *   float → 0 8px 30px     rgba(31, 77, 46, 0.12)
- * iOS pakai shadow*, Android pakai elevation.
- */
 export const ShadowSoft: ViewStyle = Platform.select<ViewStyle>({
   ios: {
     shadowColor: '#1F4D2E',
@@ -128,12 +94,6 @@ export const ShadowFloat: ViewStyle = Platform.select<ViewStyle>({
   default: { elevation: 6 },
 }) as ViewStyle;
 
-/* ──────────────────────────── Tipografi siap pakai ──────────────────────────── */
-
-/**
- * Web memakai kombinasi class seperti `font-headline font-bold text-[36px]`.
- * Helper di bawah merangkum pasangan font + warna yang sering dipakai.
- */
 export const Typography = StyleSheet.create({
   headline: {
     fontFamily: Fonts.headline,

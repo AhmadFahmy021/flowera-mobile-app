@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import React, { useState, useSyncExternalStore } from 'react';
 import {
   Alert,
@@ -17,28 +17,15 @@ import FormField from '@/components/auth/form-field';
 import PrimaryButton from '@/components/auth/primary-button';
 import { Colors, Fonts, MarginMobile, Radius, ShadowSoft, StackMd } from '@/constants/theme';
 import { getAccountsSnapshot, subscribeToAccounts, type SavedAccount } from '@/data/auth/accounts';
+import { setSession } from '@/data/auth/session';
 import { Image } from 'expo-image';
 
-// ============================================================================
-// Deklarasi Type & Array of Objects
-// ============================================================================
-
-/**
- * Deklarasi Custom Type untuk Data Akun Terdaftar (Saved Account).
- * Didefinisikan di `@/data/auth/accounts` bersama store-nya; di-re-export di
- * sini supaya import lama (`@/app/login`) tidak rusak.
- *
- * Array of Objects (akun bawaan + akun hasil register) disimpan di store
- * tersebut dan dibaca lewat `useSyncExternalStore` agar form login selalu
- * sinkron dengan data registrasi.
- */
 export type { SavedAccount };
 
 export default function LoginScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { registered } = useLocalSearchParams<{ registered?: string }>();
 
-  // Daftar akun terdaftar (bawaan + hasil register) langsung dari store.
   const savedAccounts = useSyncExternalStore(
     subscribeToAccounts,
     getAccountsSnapshot,
@@ -49,22 +36,12 @@ export default function LoginScreen(): React.JSX.Element {
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // ============================================================================
-  // 2. KRITERIA: Deklarasi Custom Function
-  // ============================================================================
-
-  /**
-   * Custom Function 1: Memilih Akun Terdaftar & Mengisi Form Secara Otomatis
-   */
   const handleSelectAccount = (account: SavedAccount): void => {
     setEmail(account.email);
     setPassword(account.pass);
     setErrorMessage('');
   };
 
-  /**
-   * Custom Function 2: Validasi Form Login
-   */
   const validateLoginForm = (inputEmail: string, inputPass: string): boolean => {
     if (!inputEmail.trim() || !inputPass.trim()) {
       setErrorMessage('Email dan password wajib diisi.');
@@ -74,34 +51,31 @@ export default function LoginScreen(): React.JSX.Element {
     return true;
   };
 
-  /**
-   * Custom Function 3: Handling Submit Form Login dengan Alert Pop-up
-   */
   const handleLoginSubmit = (): void => {
     if (!validateLoginForm(email, password)) {
       return;
     }
 
-    // Pengecekan data input terhadap daftar akun terdaftar
     const matchedAccount = savedAccounts.find(
       (acc) => acc.email.toLowerCase() === email.trim().toLowerCase() && acc.pass === password
     );
 
-    if (matchedAccount) {
-      Alert.alert(
-        'Login Berhasil 🎉',
-        `Selamat datang kembali, ${matchedAccount.name}!\n\nEmail: ${matchedAccount.email}\nPeran: ${matchedAccount.role}`
-      );
-    } else {
-      Alert.alert(
-        'Login Berhasil 🎉',
-        `Berhasil masuk dengan akun:\n${email.trim()}`
-      );
-    }
+    setSession(
+      matchedAccount
+        ? { name: matchedAccount.name, email: matchedAccount.email, role: matchedAccount.role }
+        : { name: email.trim().split('@')[0], email: email.trim(), role: 'Customer' }
+    );
+
+    const greeting = matchedAccount
+      ? `Selamat datang kembali, ${matchedAccount.name}!\n\nEmail: ${matchedAccount.email}\nPeran: ${matchedAccount.role}`
+      : `Berhasil masuk dengan akun:\n${email.trim()}`;
+
+    Alert.alert('Login Berhasil ', greeting);
+
+    router.replace('/home');
   };
 
   return (
-    // 3. KRITERIA: Penggunaan External Style (styles.screen) & Inline Style bersamaan
     <View
       style={[
         styles.screen,
@@ -115,17 +89,12 @@ export default function LoginScreen(): React.JSX.Element {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <View style={styles.content}>
-            {/* Header / Brand Logo */}
             <View style={styles.header}>
-              {/* <View style={styles.logoBadge}>
-                <MaterialIcons name="local-florist" size={40} color={Colors.primary} />
-              </View> */}
               <Image
                 source={require('../../assets/images/logo.png')}
                 style={styles.logo}
                 contentFit="contain"
               />
-              {/* <Text style={styles.brandTitle}>Flowera</Text> */}
               <Text style={styles.title}>Selamat Datang Kembali</Text>
               <Text style={styles.subtitle}>
                 Masuk ke akun kamu untuk melanjutkan belanja bunga segar.
@@ -142,7 +111,6 @@ export default function LoginScreen(): React.JSX.Element {
             ) : null}
 
             {errorMessage ? (
-              // Contoh Inline Style eksplisit untuk Banner Alert Error
               <View
                 style={{
                   flexDirection: 'row',
@@ -160,7 +128,6 @@ export default function LoginScreen(): React.JSX.Element {
               </View>
             ) : null}
 
-            {/* Form Input */}
             <View style={styles.form}>
               <FormField
                 label="Email"
@@ -187,21 +154,15 @@ export default function LoginScreen(): React.JSX.Element {
               <PrimaryButton label="Masuk" onPress={handleLoginSubmit} />
             </View>
 
-            {/* ============================================================================
-                Deklarasi Loop (map) pada Array of Objects + Inline & External Styles
-               ============================================================================ */}
             <View style={styles.quickSection}>
-              {/* Inline Style untuk label section */}
               <Text style={[{ fontFamily: Fonts.bodySemiBold, fontSize: 13, color: Colors.outline }]}>
                 Pilih Akun Terdaftar:
               </Text>
 
               <View style={styles.quickList}>
-                {/* DEKLARASI LOOP: Merender Array of Objects (akun terdaftar) */}
                 {savedAccounts.map((account: SavedAccount) => (
                   <TouchableOpacity
                     key={account.id}
-                    // Kombinasi External Style (styles.quickCard) & Inline Style ({ backgroundColor: ... })
                     style={[
                       styles.quickCard,
                       { backgroundColor: account.badgeColor },
@@ -210,7 +171,6 @@ export default function LoginScreen(): React.JSX.Element {
                     activeOpacity={0.7}>
                     <View style={styles.quickCardHeader}>
                       <MaterialIcons name={account.icon} size={18} color={Colors.primary} />
-                      {/* Inline Style untuk text role */}
                       <Text style={[styles.quickRole, { color: Colors.primary }]}>
                         {account.role}
                       </Text>
@@ -222,7 +182,6 @@ export default function LoginScreen(): React.JSX.Element {
               </View>
             </View>
 
-            {/* Footer Navigation */}
             <Text style={styles.footer}>
               Belum punya akun?{' '}
               <Link href="./register" style={styles.link}>
@@ -236,9 +195,6 @@ export default function LoginScreen(): React.JSX.Element {
   );
 }
 
-// ============================================================================
-// KRITERIA: External Styles (StyleSheet.create)
-// ============================================================================
 const styles = StyleSheet.create({
   screen: {
     flex: 1,

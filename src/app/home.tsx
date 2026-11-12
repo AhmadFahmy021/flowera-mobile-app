@@ -1,26 +1,13 @@
-/**
- * Screen Home (`/home`) — beranda pembeli.
- *
- * Layout mengikuti versi web (`flowera-frontend/app/(buyer)/page.tsx`) pada
- * breakpoint mobile:
- * - Header sticky: logo Flowera + avatar akun.
- * - Hero carousel 4:3 dengan overlay gradien, tombol "Shop The Collection",
- *   dan indikator slide (autoplay 15 detik).
- * - "Belanja Sesuai Kebutuhan": chip kategori dari katalog.
- * - Tab "Trending Bouquets" / "Nearby Florists" dengan kartu ala web.
- * - Bottom navigation: Home / Orders / Profile.
- *
- * Alur: Login → Home → Detail Produk. Kartu produk membuka `/product/<id>`.
- */
-
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
+  Button,
   Platform,
   ScrollView,
   StyleSheet,
@@ -41,18 +28,12 @@ import {
   StackLg,
   StackMd,
 } from '@/constants/theme';
-import {
-  HERO_SLIDES,
-  PRODUCT_CATALOG,
-  type ProductRecord,
-  type ProductStore,
-} from '@/data/products/catalog';
+import { fetchProductCatalog } from '@/data/products/api';
+import { HERO_SLIDES } from '@/data/products/hero';
+import type { ProductRecord, ProductStore } from '@/data/products/types';
 import { formatRupiah } from '@/utils/format';
 
-// Aset lokal dimuat lewat require supaya Metro membundelnya (tipografi aset Expo).
 const logo = require('../../assets/images/flowera-logo.png');
-
-/* ──────────────────────────── Types & constants ──────────────────────────── */
 
 type ExploreTab = 'products' | 'florists';
 
@@ -62,7 +43,6 @@ type NavItem = {
   label: string;
 };
 
-/** Tinggi bottom navigation (tanpa safe-area), sama dengan versi web. */
 const BOTTOM_NAV_HEIGHT = 71;
 const HERO_INTERVAL_MS = 15000;
 
@@ -72,26 +52,24 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'profile', icon: 'person', label: 'Profile' },
 ];
 
-/* ──────────────────────────── Screen ──────────────────────────── */
-
 export default function HomeScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
 
   const scrollRef = useRef<ScrollView>(null);
   const catalogOffset = useRef<number>(0);
-  // Nilai animasi stabil dari useState (ref tidak boleh dibaca saat render).
   const [translateX] = useState(() => new Animated.Value(0));
 
-  // 1. KRITERIA: state dengan hook useState
   const [currentSlide, setCurrentSlide] = useState<number>(0);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ExploreTab>('products');
   const [savedIds, setSavedIds] = useState<number[]>([]);
-
+  const [catalog, setCatalog] = useState<ProductRecord[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
+  const [productsError, setProductsError] = useState<boolean>(false);
+  const [reloadToken, setReloadToken] = useState<number>(0);
   const slideWidth = Math.max(windowWidth - MarginMobile * 2, 0);
 
-  // 2. KRITERIA: hook useEffect — autoplay carousel tiap 15 detik
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentSlide((previous) => (previous + 1) % HERO_SLIDES.length);
@@ -100,7 +78,6 @@ export default function HomeScreen(): React.JSX.Element {
     return () => clearInterval(timer);
   }, []);
 
-  // Animasi geser track carousel saat slide aktif berubah
   useEffect(() => {
     Animated.timing(translateX, {
       toValue: -currentSlide * slideWidth,
@@ -109,37 +86,57 @@ export default function HomeScreen(): React.JSX.Element {
     }).start();
   }, [currentSlide, slideWidth, translateX]);
 
+  useEffect(() => {
+    let active = true;
+
+    fetchProductCatalog()
+      .then((records) => {
+        if (!active) return;
+        setCatalog(records);
+      })
+      .catch(() => {
+        if (!active) return;
+        setCatalog([]);
+        setProductsError(true);
+      })
+      .finally(() => {
+        if (active) setLoadingProducts(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [reloadToken]);
+
   const categories = useMemo<string[]>(
     () =>
-      PRODUCT_CATALOG.reduce<string[]>(
+      catalog.reduce<string[]>(
         (list, product) =>
           list.includes(product.category) ? list : [...list, product.category],
         []
       ),
-    []
+    [catalog]
   );
 
   const products = useMemo<ProductRecord[]>(
     () =>
       activeCategory === null
-        ? PRODUCT_CATALOG
-        : PRODUCT_CATALOG.filter((product) => product.category === activeCategory),
-    [activeCategory]
+        ? catalog
+        : catalog.filter((product) => product.category === activeCategory),
+    [catalog, activeCategory]
   );
 
   const florists = useMemo<ProductStore[]>(
     () =>
-      PRODUCT_CATALOG.reduce<ProductStore[]>(
+      catalog.reduce<ProductStore[]>(
         (list, product) =>
           list.some((store) => store.id === product.store.id)
             ? list
             : [...list, product.store],
         []
       ),
-    []
+    [catalog]
   );
-
-  /* ── Custom functions ── */
 
   const handleOpenProduct = (product: ProductRecord): void => {
     router.push(`/product/${product.id}`);
@@ -151,6 +148,12 @@ export default function HomeScreen(): React.JSX.Element {
         ? previous.filter((savedId) => savedId !== productId)
         : [...previous, productId]
     );
+  };
+
+  const handleRetryProducts = (): void => {
+    setLoadingProducts(true);
+    setProductsError(false);
+    setReloadToken((token) => token + 1);
   };
 
   const handleShopCollection = (): void => {
@@ -181,11 +184,8 @@ export default function HomeScreen(): React.JSX.Element {
     handleOpenAccount();
   };
 
-  /* ── Render ── */
-
   return (
     <View style={styles.screen}>
-      {/* Header sticky */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Image source={logo} style={styles.logo} contentFit="contain" />
         <TouchableOpacity
@@ -206,7 +206,6 @@ export default function HomeScreen(): React.JSX.Element {
           { paddingBottom: Math.max(insets.bottom, 0) + BOTTOM_NAV_HEIGHT + StackMd },
         ]}
         showsVerticalScrollIndicator={false}>
-        {/* Hero carousel */}
         <View style={styles.hero}>
           <Animated.View
             style={[
@@ -248,7 +247,6 @@ export default function HomeScreen(): React.JSX.Element {
             ))}
           </Animated.View>
 
-          {/* Indikator slide */}
           <View style={styles.heroDots}>
             {HERO_SLIDES.map((slide, index) => (
               <TouchableOpacity
@@ -263,7 +261,6 @@ export default function HomeScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* Belanja sesuai kebutuhan */}
         <View
           style={styles.catalogBlock}
           onLayout={(event) => {
@@ -303,11 +300,10 @@ export default function HomeScreen(): React.JSX.Element {
           </ScrollView>
         </View>
 
-        {/* Explore: produk & florist */}
         <View style={styles.explore}>
           <View style={styles.tabs}>
             <TabButton
-              label="Trending Bouquets"
+              label="Trending Picks"
               active={activeTab === 'products'}
               onPress={() => setActiveTab('products')}
             />
@@ -318,7 +314,26 @@ export default function HomeScreen(): React.JSX.Element {
             />
           </View>
 
-          {activeTab === 'products' ? (
+          {loadingProducts ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.emptyText}>Memuat produk dari API...</Text>
+            </View>
+          ) : productsError ? (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="error-outline" size={64} color={Colors.error} />
+              <Text style={styles.emptyTitle}>Gagal memuat produk</Text>
+              <Text style={styles.emptyText}>
+                Periksa koneksi internet, lalu coba lagi.
+              </Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={handleRetryProducts}
+                activeOpacity={0.85}>
+                <Text style={styles.retryLabel}>Coba Lagi</Text>
+              </TouchableOpacity>
+            </View>
+          ) : activeTab === 'products' ? (
             products.length === 0 ? (
               <View style={styles.emptyState}>
                 <MaterialIcons name="search-off" size={64} color={Colors.outline} />
@@ -349,12 +364,12 @@ export default function HomeScreen(): React.JSX.Element {
                   onVisit={() => Alert.alert('Toko', `Halaman ${florist.name} belum tersedia.`)}
                 />
               ))}
+
             </View>
           )}
         </View>
       </ScrollView>
 
-      {/* Bottom navigation */}
       <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         {NAV_ITEMS.map((item) => {
           const isActive = item.key === 'home';
@@ -381,8 +396,6 @@ export default function HomeScreen(): React.JSX.Element {
     </View>
   );
 }
-
-/* ──────────────────────────── Sub-components ──────────────────────────── */
 
 function CategoryChip({
   label,
@@ -488,7 +501,7 @@ function ProductCard({
               {product.store.city}
             </Text>
           </View>
-          <Text style={styles.cardFooterText}>{product.sold} terjual</Text>
+          <Text style={styles.cardFooterText}>Stok {product.stock}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -522,15 +535,12 @@ function FloristCard({
   );
 }
 
-/* ──────────────────────────── Styles ──────────────────────────── */
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Colors.background,
   },
 
-  /* Header sticky */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -566,7 +576,6 @@ const styles = StyleSheet.create({
     gap: StackLg,
   },
 
-  /* Hero carousel */
   hero: {
     width: '100%',
     aspectRatio: 4 / 3,
@@ -638,7 +647,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.onPrimary,
   },
 
-  /* Kategori */
   catalogBlock: {
     gap: 16,
   },
@@ -694,7 +702,6 @@ const styles = StyleSheet.create({
     color: Colors.onPrimary,
   },
 
-  /* Tab & daftar */
   explore: {
     gap: StackMd,
   },
@@ -726,7 +733,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
 
-  /* Kartu produk */
   productGrid: {
     gap: StackMd,
   },
@@ -816,7 +822,6 @@ const styles = StyleSheet.create({
     color: Colors.outline,
   },
 
-  /* Empty state */
   emptyState: {
     alignItems: 'center',
     gap: 8,
@@ -842,7 +847,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  /* Kartu florist */
+  retryButton: {
+    marginTop: 4,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
+  },
+  retryLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 13,
+    color: Colors.onPrimary,
+  },
+
   floristList: {
     gap: StackMd,
   },
@@ -898,7 +915,6 @@ const styles = StyleSheet.create({
     color: Colors.secondary,
   },
 
-  /* Bottom navigation */
   bottomNav: {
     position: 'absolute',
     left: 0,

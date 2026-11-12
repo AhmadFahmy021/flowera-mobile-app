@@ -1,8 +1,3 @@
-/**
- * PasswordStrength — meter kekuatan password (register only).
- * Port `getPasswordStrength` dari register/page.tsx web: 4 segmen + label.
- */
-
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 

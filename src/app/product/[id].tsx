@@ -1,17 +1,3 @@
-/**
- * Screen Detail Produk (`/product/[id]`) — layout ala marketplace.
- *
- * Susunan layar: gambar besar dengan overlay rating toko + nama + highlight,
- * strip variasi, blok harga (voucher, terjual, favorit), cicilan, pengiriman,
- * jaminan, add-on, deskripsi, ulasan, dan action bar tetap di bawah
- * (Chat / Keranjang / Beli Sekarang).
- *
- * Pemuatan data memakai `useState` + `useEffect` (kriteria praktikum):
- * - state  : product, loading, failed, selectedVariant, selectedAddons, galeri
- * - effect : memuat produk setiap `id` berubah / tombol "Coba Lagi" ditekan,
- *            dengan cleanup flag supaya tidak setState setelah layar dilepas.
- */
-
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -37,16 +23,10 @@ import {
   ShadowSoft,
   StackMd,
 } from '@/constants/theme';
-import {
-  fetchProductById,
-  type ProductAddon,
-  type ProductRecord,
-} from '@/data/products/catalog';
+import { fetchProductById } from '@/data/products/api';
+import type { ProductAddon, ProductRecord } from '@/data/products/types';
 import { formatRupiah } from '@/utils/format';
 
-/* ──────────────────────────── Types & helpers ──────────────────────────── */
-
-/** Satu entri strip gambar: gambar produk atau gambar varian. */
 type GalleryItem = {
   key: string;
   imageUrl: string;
@@ -54,7 +34,6 @@ type GalleryItem = {
   variantId: number | null;
 };
 
-/** Perkiraan tiba: besok s/d lusa, format "23 - 24 Okt". */
 function formatDeliveryEta(): string {
   const formatter = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short' });
   const start = new Date();
@@ -64,13 +43,10 @@ function formatDeliveryEta(): string {
   return `${formatter.format(start)} - ${formatter.format(end)}`;
 }
 
-/* ──────────────────────────── Screen ──────────────────────────── */
-
 export default function ProductDetailScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  // 1. KRITERIA: deklarasi state dengan hook useState
   const [product, setProduct] = useState<ProductRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [failed, setFailed] = useState<boolean>(false);
@@ -81,7 +57,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
   const [reviewQuery, setReviewQuery] = useState<string>('');
   const [showAllReviews, setShowAllReviews] = useState<boolean>(false);
 
-  // 2. KRITERIA: hook useEffect — memuat produk setiap `id` berubah / retry
   useEffect(() => {
     let active = true;
 
@@ -99,7 +74,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
         setIsSaved(false);
         setReviewQuery('');
         setShowAllReviews(false);
-        // Varian pertama langsung menampilkan gambarnya di galeri.
         setSelectedImageKey(initialVariant ? `variant-${initialVariant.id}` : '');
       } catch {
         if (!active) return;
@@ -112,16 +86,11 @@ export default function ProductDetailScreen(): React.JSX.Element {
 
     void load();
 
-    // Cleanup: cegah setState setelah layar ditinggalkan / id berganti
     return () => {
       active = false;
     };
   }, [id, reloadToken]);
 
-  /**
-   * Strip gambar: semua gambar produk (default lebih dulu), lalu satu entri
-   * per varian. `useMemo` menghindari pembuatan ulang array pada render biasa.
-   */
   const galleryItems = useMemo<GalleryItem[]>(() => {
     if (!product) return [];
 
@@ -152,7 +121,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
     ? galleryItems.findIndex((item) => item.key === selectedItem.key)
     : 0;
 
-  /** Varian terpilih diturunkan dari entri galeri yang aktif. */
   const selectedVariant = useMemo(
     () =>
       selectedItem?.variantId == null
@@ -161,7 +129,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
     [selectedItem, product]
   );
 
-  // Ulasan terfilter dari kolom pencarian ulasan
   const filteredReviews = useMemo(() => {
     const reviews = product?.reviews ?? [];
     const keyword = reviewQuery.trim().toLowerCase();
@@ -178,14 +145,10 @@ export default function ProductDetailScreen(): React.JSX.Element {
   const totalPrice = variantPrice + addonsTotal;
   const deliveryEta = formatDeliveryEta();
 
-  /* ── Custom functions ── */
-
-  /** Memilih gambar strip; bila gambar milik varian, varian ikut terpilih. */
   const handleSelectGalleryItem = (item: GalleryItem): void => {
     setSelectedImageKey(item.key);
   };
 
-  /** Menambah / melepas satu add-on dari pesanan. */
   const handleToggleAddon = (addon: ProductAddon): void => {
     setSelectedAddons((previous) =>
       previous.some((entry) => entry.id === addon.id)
@@ -231,8 +194,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
   const handleMore = (): void => {
     Alert.alert('Opsi Produk', 'Bagikan produk, laporkan, atau simpan ke favorit.');
   };
-
-  /* ── Render ── */
 
   const renderContent = (): React.JSX.Element => {
     if (loading) {
@@ -284,7 +245,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
           contentContainerStyle={{ paddingBottom: 24 + insets.bottom + 88 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
-          {/* Gambar utama + overlay */}
           <View style={styles.hero}>
             {selectedItem?.imageUrl ? (
               <Image
@@ -299,7 +259,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
               </View>
             )}
 
-            {/* App bar transparan di atas gambar */}
             <View style={[styles.heroHeader, { top: Math.max(insets.top, 10) }]}>
               <TouchableOpacity
                 style={styles.heroIconButton}
@@ -310,10 +269,10 @@ export default function ProductDetailScreen(): React.JSX.Element {
 
               <View style={styles.heroBrandPill}>
                 <Text style={styles.heroBrand}>Flowera</Text>
-                {product.isLifeFlower ? (
+                {product.category ? (
                   <View style={styles.lifeBadge}>
                     <MaterialIcons name="eco" size={11} color={Colors.tertiary} />
-                    <Text style={styles.lifeBadgeText}>Life Flower</Text>
+                    <Text style={styles.lifeBadgeText}>{product.category}</Text>
                   </View>
                 ) : null}
               </View>
@@ -334,35 +293,36 @@ export default function ProductDetailScreen(): React.JSX.Element {
               </View>
             </View>
 
-            {/* Counter gambar */}
             <View style={[styles.imageCounter, { top: Math.max(insets.top, 10) + 52 }]}>
               <Text style={styles.imageCounterText}>
                 {galleryIndex + 1}/{galleryItems.length}
               </Text>
             </View>
 
-            {/* Kartu overlay: rating toko, nama, highlight */}
             <View style={styles.heroCard}>
               <View style={styles.storeRatingRow}>
                 <MaterialIcons name="star" size={13} color={Colors.star} />
-                <Text style={styles.storeRatingValue}>{product.storeRating.toFixed(1)}</Text>
+                <Text style={styles.storeRatingValue}>{product.rating.toFixed(1)}</Text>
                 <Text style={styles.storeRatingText}>
-                  penilaian toko dari {product.storeReviewers} pembeli
+                  penilaian produk dari {product.reviews.length} ulasan
                 </Text>
               </View>
               <Text style={styles.heroName}>{product.name}</Text>
-              <Text style={styles.heroHighlights} numberOfLines={2}>
-                {product.highlights.join('  |  ')}
-              </Text>
+              {product.tags.length > 0 ? (
+                <Text style={styles.heroHighlights} numberOfLines={2}>
+                  {product.tags.join('  |  ')}
+                </Text>
+              ) : null}
             </View>
           </View>
 
           <View style={styles.content}>
-            {/* Variasi / gambar */}
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionTitle}>
-                  {product.variants.length} Variasi Tersedia
+                  {product.variants.length > 0
+                    ? `${product.variants.length} Variasi Tersedia`
+                    : 'Galeri Produk'}
                 </Text>
                 <Text style={styles.sectionHint}>{galleryItems.length} foto</Text>
               </View>
@@ -400,19 +360,20 @@ export default function ProductDetailScreen(): React.JSX.Element {
               </ScrollView>
             </View>
 
-            {/* Harga */}
             <View style={styles.priceRow}>
               <View style={styles.priceMain}>
                 <Text style={styles.price}>{formatRupiah(variantPrice)}</Text>
-                {product.voucherLabel ? (
+                {product.discountPercentage > 0 ? (
                   <View style={styles.voucherRow}>
                     <MaterialIcons name="local-offer" size={12} color={Colors.tertiary} />
-                    <Text style={styles.voucherText}>{product.voucherLabel}</Text>
+                    <Text style={styles.voucherText}>
+                      Diskon {product.discountPercentage.toFixed(0)}%
+                    </Text>
                   </View>
                 ) : null}
               </View>
               <View style={styles.priceMeta}>
-                <Text style={styles.soldText}>{product.sold} Terjual</Text>
+                <Text style={styles.soldText}>Stok {product.stock}</Text>
                 <TouchableOpacity
                   style={styles.favoriteButton}
                   onPress={() => setIsSaved((saved) => !saved)}
@@ -429,7 +390,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
               </View>
             </View>
 
-            {/* Cicilan */}
             <TouchableOpacity
               style={styles.installmentRow}
               onPress={() =>
@@ -446,7 +406,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
               <MaterialIcons name="chevron-right" size={16} color={Colors.onSurfaceVariant} />
             </TouchableOpacity>
 
-            {/* Pengiriman */}
             <View style={styles.infoCard}>
               <TouchableOpacity
                 style={styles.infoRow}
@@ -471,7 +430,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
               </TouchableOpacity>
             </View>
 
-            {/* Jaminan */}
             <View style={styles.infoCard}>
               <TouchableOpacity
                 style={styles.infoRow}
@@ -498,7 +456,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
               </TouchableOpacity>
             </View>
 
-            {/* Add-on */}
             {product.addons.length > 0 ? (
               <View style={styles.section}>
                 <View style={styles.sectionHeaderRow}>
@@ -537,7 +494,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
               </View>
             ) : null}
 
-            {/* Rincian harga bila ada add-on */}
             {selectedAddons.length > 0 ? (
               <View style={styles.breakdown}>
                 <View style={styles.breakdownRow}>
@@ -560,7 +516,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
               </View>
             ) : null}
 
-            {/* Deskripsi */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Tentang Produk</Text>
               <Text style={styles.description}>{product.description}</Text>
@@ -576,7 +531,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
               </View>
             </View>
 
-            {/* Ulasan */}
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <View style={styles.reviewTitleRow}>
@@ -631,7 +585,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
           </View>
         </ScrollView>
 
-        {/* Action bar tetap di bawah */}
         <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
           <TouchableOpacity style={styles.bottomIcon} onPress={handleOpenChat} activeOpacity={0.8}>
             <MaterialIcons name="chat-bubble-outline" size={22} color={Colors.onSurface} />
@@ -653,9 +606,6 @@ export default function ProductDetailScreen(): React.JSX.Element {
   return <View style={styles.screen}>{renderContent()}</View>;
 }
 
-/* ──────────────────────────── Sub-components ──────────────────────────── */
-
-/** Bintang rating 0–5, warna emas untuk bintang terisi. */
 function StarRating({ rating, size = 16 }: { rating: number; size?: number }): React.JSX.Element {
   const filled = Math.round(rating);
   return (
@@ -672,15 +622,12 @@ function StarRating({ rating, size = 16 }: { rating: number; size?: number }): R
   );
 }
 
-/* ──────────────────────────── Styles ──────────────────────────── */
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Colors.background,
   },
 
-  /* State layar: loading / error / not found */
   centerState: {
     flex: 1,
     alignItems: 'center',
@@ -723,7 +670,6 @@ const styles = StyleSheet.create({
     color: Colors.onPrimary,
   },
 
-  /* Gambar utama */
   hero: {
     width: '100%',
     aspectRatio: 0.86,
@@ -842,7 +788,6 @@ const styles = StyleSheet.create({
     color: Colors.onSurfaceVariant,
   },
 
-  /* Konten */
   content: {
     paddingHorizontal: MarginMobile,
     paddingTop: StackMd,
@@ -873,7 +818,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
 
-  /* Strip variasi */
   thumbsRow: {
     gap: 8,
     paddingBottom: 2,
@@ -911,7 +855,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
 
-  /* Harga */
   priceRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -954,7 +897,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerLow,
   },
 
-  /* Cicilan */
   installmentRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -971,7 +913,6 @@ const styles = StyleSheet.create({
     color: Colors.onSurface,
   },
 
-  /* Kartu info (pengiriman & jaminan) */
   infoCard: {
     borderRadius: Radius.md,
     borderWidth: 1,
@@ -1027,7 +968,6 @@ const styles = StyleSheet.create({
     color: Colors.onPrimary,
   },
 
-  /* Add-on */
   addonRow: {
     gap: 8,
     paddingBottom: 2,
@@ -1058,7 +998,6 @@ const styles = StyleSheet.create({
     color: Colors.secondary,
   },
 
-  /* Rincian */
   breakdown: {
     padding: 14,
     gap: 8,
@@ -1095,7 +1034,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
 
-  /* Deskripsi & toko */
   description: {
     fontFamily: Fonts.body,
     fontSize: 13,
@@ -1136,7 +1074,6 @@ const styles = StyleSheet.create({
     color: Colors.onSurfaceVariant,
   },
 
-  /* Ulasan */
   reviewTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1215,7 +1152,6 @@ const styles = StyleSheet.create({
     gap: 2,
   },
 
-  /* Action bar */
   bottomBar: {
     position: 'absolute',
     left: 0,

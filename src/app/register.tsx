@@ -1,9 +1,3 @@
-/**
- * Screen Register (`/register`) — form sesuai `RegisterDto` Flowera API
- * (name, phone_number, email, password). Submit ke `POST /api/auth/register`
- * lewat `useAuth().register()`; sukses → redirect ke `/login`.
- */
-
 import { Image } from 'expo-image';
 import { Link, router } from 'expo-router';
 import React, { useState } from 'react';
@@ -20,7 +14,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FormField from '@/components/auth/form-field';
 import PasswordStrength from '@/components/auth/password-strength';
 import PrimaryButton from '@/components/auth/primary-button';
-// import { useAuth } from '@/auth/auth-context';
 import { Colors, Fonts, MarginMobile, StackMd } from '@/constants/theme';
 import { addAccount } from '@/data/auth/accounts';
 import {
@@ -30,7 +23,6 @@ import {
   validatePassword,
   validatePhoneNumber,
 } from '@/data/auth/validation';
-// import { useAuth } from './auth/auth-context';
 
 interface FieldErrors {
   name?: string;
@@ -42,7 +34,6 @@ interface FieldErrors {
 
 export default function RegisterScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
-//   const { register } = useAuth();
 
   const [name, setName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -85,9 +76,6 @@ export default function RegisterScreen(): React.JSX.Element {
     setFormError(null);
     setSubmitting(true);
     try {
-    //   await register({ name, phone_number: phoneNumber, email, password });
-      // Simpan akun baru ke daftar akun terdaftar agar bisa dipakai login
-      // (dan muncul di daftar "Pilih Akun Terdaftar" pada layar login).
       const account = addAccount({ name, email: normalizeEmail(email), pass: password });
       if (!account) {
         setFormError('Email sudah terdaftar. Silakan masuk atau pakai email lain.');
@@ -127,6 +115,11 @@ export default function RegisterScreen(): React.JSX.Element {
             </View>
 
             <View style={styles.form}>
+              <PrimaryButton
+                label="Buat Akun"
+                onPress={handleSubmit}
+                loading={submitting}
+              />
               <FormField
                 label="Nama Lengkap"
                 value={name}
@@ -187,12 +180,6 @@ export default function RegisterScreen(): React.JSX.Element {
               {formError ? (
                 <Text style={styles.formError}>{formError}</Text>
               ) : null}
-
-              <PrimaryButton
-                label="Buat Akun"
-                onPress={handleSubmit}
-                loading={submitting}
-              />
             </View>
 
             <Text style={styles.footer}>

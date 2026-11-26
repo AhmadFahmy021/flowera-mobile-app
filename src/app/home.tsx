@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Button,
   Platform,
   ScrollView,
   StyleSheet,
@@ -31,7 +30,7 @@ import {
 } from '@/constants/theme';
 import type { HomeProduct, HomeStore } from '@/data/home/api';
 import { useCategoryProducts, useHomeData } from '@/data/home/use-home-data';
-import { HERO_SLIDES } from '@/data/products/catalog';
+import { HERO_SLIDES } from '@/data/products/hero';
 import { formatRupiah } from '@/utils/format';
 
 const logo = require('../../assets/images/flowera-logo.png');
@@ -114,28 +113,6 @@ export default function HomeScreen(): React.JSX.Element {
     }).start();
   }, [currentSlide, slideWidth, translateX]);
 
-  useEffect(() => {
-    let active = true;
-
-    fetchProductCatalog()
-      .then((records) => {
-        if (!active) return;
-        setCatalog(records);
-      })
-      .catch(() => {
-        if (!active) return;
-        setCatalog([]);
-        setProductsError(true);
-      })
-      .finally(() => {
-        if (active) setLoadingProducts(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [reloadToken]);
-
   const products = useMemo<HomeProduct[]>(() => {
     const keyword = debouncedQuery.trim().toLowerCase();
     const base = activeCategory === null ? allProducts : categoryProducts ?? [];
@@ -152,7 +129,7 @@ export default function HomeScreen(): React.JSX.Element {
   const handleOpenProduct = (product: HomeProduct): void => {
     router.push({
       pathname: '/product/[id]',
-      params: { id: String(product.id), source: 'home' },
+      params: { id: String(product.id) },
     });
   };
 
@@ -164,22 +141,12 @@ export default function HomeScreen(): React.JSX.Element {
     );
   };
 
-  const handleRetryProducts = (): void => {
-    setLoadingProducts(true);
-    setProductsError(false);
-    setReloadToken((token) => token + 1);
-  };
-
   const handleShopCollection = (): void => {
     scrollRef.current?.scrollTo({ y: catalogOffset.current, animated: true });
   };
 
   const handleCustomBouquet = (): void => {
     Alert.alert('Custom Bouquet', 'Fitur custom bouquet belum tersedia di aplikasi.');
-  };
-
-  const handleOpenOrders = (): void => {
-    Alert.alert('Pesanan', 'Halaman pesanan belum tersedia.');
   };
 
   const handleNavPress = (key: NavItem['key']): void => {

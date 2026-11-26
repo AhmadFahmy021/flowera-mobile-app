@@ -1,5 +1,5 @@
 /**
- * Interface model produk yang dipakai layar (hasil mapping dari External API
+ * Interface model produk yang dipakai layar (hasil mapping dari Flowera API
  * pada `./api.ts`). Semua nominal sudah dalam Rupiah.
  */
 
@@ -45,14 +45,14 @@ export interface ProductRecord {
   price: number;
   description: string;
   rating: number;
-  stock: number;
+  stock: number | null;
   discountPercentage: number;
   tags: string[];
   images: ProductImage[];
   variants: ProductVariant[];
   addons: ProductAddon[];
   reviews: ProductReview[];
-  store: ProductStore;
+  store: ProductStore | null;
 }
 
 export interface HeroSlide {

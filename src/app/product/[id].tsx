@@ -45,7 +45,7 @@ function formatDeliveryEta(): string {
 
 export default function ProductDetailScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { id,source  } = useLocalSearchParams<{ id: string; source?: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
 
   const [product, setProduct] = useState<ProductRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -168,7 +168,7 @@ export default function ProductDetailScreen(): React.JSX.Element {
   };
 
   const handleOpenChat = (): void => {
-    Alert.alert('Chat', `Mulai chat dengan ${product?.store.name ?? 'penjual'}.`);
+    Alert.alert('Chat', `Mulai chat dengan ${product?.store?.name ?? 'penjual'}.`);
   };
 
   const handleAddToCart = (): void => {
@@ -382,7 +382,9 @@ export default function ProductDetailScreen(): React.JSX.Element {
                 ) : null}
               </View>
               <View style={styles.priceMeta}>
-                <Text style={styles.soldText}>Stok {product.stock}</Text>
+                <Text style={styles.soldText}>
+                  {product.stock === null ? 'Cek stok ke toko' : `Stok ${product.stock}`}
+                </Text>
                 <TouchableOpacity
                   style={styles.favoriteButton}
                   onPress={() => setIsSaved((saved) => !saved)}
@@ -528,16 +530,18 @@ export default function ProductDetailScreen(): React.JSX.Element {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Tentang Produk</Text>
               <Text style={styles.description}>{product.description}</Text>
-              <View style={styles.storeRow}>
-                <View style={styles.storeAvatar}>
-                  <MaterialIcons name="storefront" size={18} color={Colors.primary} />
+              {product.store ? (
+                <View style={styles.storeRow}>
+                  <View style={styles.storeAvatar}>
+                    <MaterialIcons name="storefront" size={18} color={Colors.primary} />
+                  </View>
+                  <View style={styles.storeInfo}>
+                    <Text style={styles.storeName}>{product.store.name}</Text>
+                    <Text style={styles.storeCity}>{product.store.city}</Text>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={18} color={Colors.onSurfaceVariant} />
                 </View>
-                <View style={styles.storeInfo}>
-                  <Text style={styles.storeName}>{product.store.name}</Text>
-                  <Text style={styles.storeCity}>{product.store.city}</Text>
-                </View>
-                <MaterialIcons name="chevron-right" size={18} color={Colors.onSurfaceVariant} />
-              </View>
+              ) : null}
             </View>
 
             <View style={styles.section}>

@@ -107,6 +107,14 @@ function fallbackProfile(user: User): Profile {
   };
 }
 
+/**
+ * Ditandai true saat Supabase menjawab PGRST205 (tabel `public.profiles` belum
+ * dibuat) agar sinkronisasi profil tidak diulang di setiap perubahan sesi.
+ * Direset setiap aplikasi dibuka kembali, jadi tabel yang baru dibuat langsung
+ * terpakai tanpa perlu ubah kode.
+ */
+let profilesTableMissing = false;
+
 export function AuthProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -130,7 +138,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     if (!mounted.current) return;
 
     if (error || !data) {
-      setProfile(fallbackProfile(user));
+      // PGRST205 = tabel `public.profiles` belum dibuat (schema.sql belum jalan).
+      if (error?.code === 'PGRST205') profilesTableMissing = true;
+
+      // Tabel/baris belum ada: pakai metadata lalu coba buat barisnya sendiri
+      // agar nomor HP tetap tersimpan di database.
+      const fallback = fallbackProfile(user);
+      setProfile(fallback);
+      if (!profilesTableMissing) {
+        const { error: upsertError } = await supabase.from('profiles').upsert(
+          {
+            id: fallback.id,
+            name: fallback.name,
+            phone_number: fallback.phone_number,
+            role: fallback.role,
+          },
+          { onConflict: 'id', ignoreDuplicates: true }
+        );
+        // Berhenti mencoba sampai app dibuka ulang supaya tidak mengirim
+        // request gagal berulang kali.
+        if (upsertError?.code === 'PGRST205') profilesTableMissing = true;
+      }
       return;
     }
 
@@ -190,6 +218,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         },
       });
       if (error) throw new Error(translateAuthError(error.message));
+
+      // Simpan nomor HP ke tabel profiles. Trigger `handle_new_user` biasanya
+      // sudah melakukannya; upsert ini jaring pengaman bila trigger belum ada.
+      // Kegagalan di sini tidak boleh membatalkan registrasi.
+      if (data.user && !profilesTableMissing) {
+        await supabase.from('profiles').upsert(
+          {
+            id: data.user.id,
+            name: name.trim(),
+            phone_number: phoneNumber,
+            role: 'customer',
+          },
+          { onConflict: 'id', ignoreDuplicates: true }
+        );
+      }
 
       // Bila konfirmasi email aktif, Supabase mengembalikan user tanpa session.
       return { needsEmailConfirmation: data.session === null };

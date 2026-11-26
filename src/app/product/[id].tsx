@@ -45,7 +45,7 @@ function formatDeliveryEta(): string {
 
 export default function ProductDetailScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id,source  } = useLocalSearchParams<{ id: string; source?: string }>();
 
   const [product, setProduct] = useState<ProductRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -177,6 +177,7 @@ export default function ProductDetailScreen(): React.JSX.Element {
 
   const handleOrderNow = (): void => {
     if (!product) return;
+
     const summary = [
       product.name,
       `Varian: ${selectedVariant?.title ?? 'Harga dasar'}`,
@@ -188,7 +189,15 @@ export default function ProductDetailScreen(): React.JSX.Element {
       .filter((line): line is string => line !== null)
       .join('\n');
 
-    Alert.alert('Beli Sekarang', `${summary}\n\nHalaman checkout menyusul.`);
+    Alert.alert('Konfirmasi Pesanan', summary, [
+      { text: 'Batal', style: 'cancel' },
+      {
+        text: 'Pesan Sekarang',
+        onPress: () => {
+          router.replace('/home');
+        },
+      },
+    ]);
   };
 
   const handleMore = (): void => {

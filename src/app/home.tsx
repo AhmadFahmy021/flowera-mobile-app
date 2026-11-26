@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -28,9 +29,9 @@ import {
   StackLg,
   StackMd,
 } from '@/constants/theme';
-import { fetchProductCatalog } from '@/data/products/api';
-import { HERO_SLIDES } from '@/data/products/hero';
-import type { ProductRecord, ProductStore } from '@/data/products/types';
+import type { HomeProduct, HomeStore } from '@/data/home/api';
+import { useCategoryProducts, useHomeData } from '@/data/home/use-home-data';
+import { HERO_SLIDES } from '@/data/products/catalog';
 import { formatRupiah } from '@/utils/format';
 
 const logo = require('../../assets/images/flowera-logo.png');
@@ -45,12 +46,15 @@ type NavItem = {
 
 const BOTTOM_NAV_HEIGHT = 71;
 const HERO_INTERVAL_MS = 15000;
+const SEARCH_DEBOUNCE_MS = 300;
 
 const NAV_ITEMS: NavItem[] = [
   { key: 'home', icon: 'home', label: 'Home' },
   { key: 'orders', icon: 'shopping-bag', label: 'Orders' },
   { key: 'profile', icon: 'person', label: 'Profile' },
 ];
+
+const NO_PRODUCTS: HomeProduct[] = [];
 
 export default function HomeScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
@@ -61,13 +65,30 @@ export default function HomeScreen(): React.JSX.Element {
   const [translateX] = useState(() => new Animated.Value(0));
 
   const [currentSlide, setCurrentSlide] = useState<number>(0);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<ExploreTab>('products');
   const [savedIds, setSavedIds] = useState<number[]>([]);
-  const [catalog, setCatalog] = useState<ProductRecord[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
-  const [productsError, setProductsError] = useState<boolean>(false);
-  const [reloadToken, setReloadToken] = useState<number>(0);
+  const [query, setQuery] = useState<string>('');
+  const [debouncedQuery, setDebouncedQuery] = useState<string>('');
+
+  const {
+    data: homeData,
+    isLoading: isHomeLoading,
+    error: homeError,
+    reload: reloadHome,
+  } = useHomeData();
+
+  const categories = homeData?.categories ?? [];
+  const allProducts = homeData?.products ?? NO_PRODUCTS;
+  const florists = homeData?.stores ?? [];
+
+  const {
+    products: categoryProducts,
+    isLoading: isCategoryLoading,
+    error: categoryError,
+    reload: reloadCategory,
+  } = useCategoryProducts(activeCategory, allProducts);
+
   const slideWidth = Math.max(windowWidth - MarginMobile * 2, 0);
 
   useEffect(() => {
@@ -77,6 +98,13 @@ export default function HomeScreen(): React.JSX.Element {
 
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(()=>{
+    const timer = setTimeout(()=>{
+      setDebouncedQuery(query);
+    },SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  },[query]);
 
   useEffect(() => {
     Animated.timing(translateX, {
@@ -108,38 +136,24 @@ export default function HomeScreen(): React.JSX.Element {
     };
   }, [reloadToken]);
 
-  const categories = useMemo<string[]>(
-    () =>
-      catalog.reduce<string[]>(
-        (list, product) =>
-          list.includes(product.category) ? list : [...list, product.category],
-        []
-      ),
-    [catalog]
-  );
+  const products = useMemo<HomeProduct[]>(() => {
+    const keyword = debouncedQuery.trim().toLowerCase();
+    const base = activeCategory === null ? allProducts : categoryProducts ?? [];
 
-  const products = useMemo<ProductRecord[]>(
-    () =>
-      activeCategory === null
-        ? catalog
-        : catalog.filter((product) => product.category === activeCategory),
-    [catalog, activeCategory]
-  );
+    return base.filter(
+      (product) => keyword === '' || product.name.toLowerCase().includes(keyword)
+    );
+  }, [activeCategory, allProducts, categoryProducts, debouncedQuery]);
 
-  const florists = useMemo<ProductStore[]>(
-    () =>
-      catalog.reduce<ProductStore[]>(
-        (list, product) =>
-          list.some((store) => store.id === product.store.id)
-            ? list
-            : [...list, product.store],
-        []
-      ),
-    [catalog]
-  );
+  const isProductsLoading = activeCategory === null ? isHomeLoading : isCategoryLoading;
+  const productsError = activeCategory === null ? homeError : categoryError;
+  const retryProducts = activeCategory === null ? reloadHome : reloadCategory;
 
-  const handleOpenProduct = (product: ProductRecord): void => {
-    router.push(`/product/${product.id}`);
+  const handleOpenProduct = (product: HomeProduct): void => {
+    router.push({
+      pathname: '/product/[id]',
+      params: { id: String(product.id), source: 'home' },
+    });
   };
 
   const handleToggleSaved = (productId: number): void => {
@@ -164,10 +178,6 @@ export default function HomeScreen(): React.JSX.Element {
     Alert.alert('Custom Bouquet', 'Fitur custom bouquet belum tersedia di aplikasi.');
   };
 
-  const handleOpenAccount = (): void => {
-    Alert.alert('Akun', 'Halaman profil belum tersedia.');
-  };
-
   const handleOpenOrders = (): void => {
     Alert.alert('Pesanan', 'Halaman pesanan belum tersedia.');
   };
@@ -178,24 +188,16 @@ export default function HomeScreen(): React.JSX.Element {
       return;
     }
     if (key === 'orders') {
-      handleOpenOrders();
+      router.push('/order');
       return;
     }
-    handleOpenAccount();
+    router.push('/profile');
   };
 
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Image source={logo} style={styles.logo} contentFit="contain" />
-        <TouchableOpacity
-          style={styles.avatar}
-          onPress={handleOpenAccount}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Buka akun">
-          <MaterialIcons name="person" size={22} color={Colors.primary} />
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -266,6 +268,21 @@ export default function HomeScreen(): React.JSX.Element {
           onLayout={(event) => {
             catalogOffset.current = event.nativeEvent.layout.y;
           }}>
+          <View style={styles.searchBox}>
+            <MaterialIcons name="search" size={20} color={Colors.outline} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Cari bunga..."
+              placeholderTextColor={Colors.outline}
+              style={styles.searchInput}
+            />
+            {query.length > 0 ? (
+              <TouchableOpacity onPress={() => setQuery('')} activeOpacity={0.7}>
+                <MaterialIcons name="close" size={18} color={Colors.outline} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Belanja Sesuai Kebutuhan</Text>
             <TouchableOpacity onPress={() => setActiveCategory(null)} activeOpacity={0.7}>
@@ -284,10 +301,10 @@ export default function HomeScreen(): React.JSX.Element {
             />
             {categories.map((category) => (
               <CategoryChip
-                key={category}
-                label={category}
-                active={activeCategory === category}
-                onPress={() => setActiveCategory(category)}
+                key={category.id}
+                label={category.title}
+                active={activeCategory === category.id}
+                onPress={() => setActiveCategory(category.id)}
               />
             ))}
             <TouchableOpacity
@@ -314,27 +331,12 @@ export default function HomeScreen(): React.JSX.Element {
             />
           </View>
 
-          {loadingProducts ? (
-            <View style={styles.emptyState}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.emptyText}>Memuat produk dari API...</Text>
-            </View>
-          ) : productsError ? (
-            <View style={styles.emptyState}>
-              <MaterialIcons name="error-outline" size={64} color={Colors.error} />
-              <Text style={styles.emptyTitle}>Gagal memuat produk</Text>
-              <Text style={styles.emptyText}>
-                Periksa koneksi internet, lalu coba lagi.
-              </Text>
-              <TouchableOpacity
-                style={styles.retryButton}
-                onPress={handleRetryProducts}
-                activeOpacity={0.85}>
-                <Text style={styles.retryLabel}>Coba Lagi</Text>
-              </TouchableOpacity>
-            </View>
-          ) : activeTab === 'products' ? (
-            products.length === 0 ? (
+          {activeTab === 'products' ? (
+            isProductsLoading ? (
+              <LoadingCard label="Memuat produk..." />
+            ) : productsError ? (
+              <ErrorCard message={productsError} onRetry={retryProducts} />
+            ) : products.length === 0 ? (
               <View style={styles.emptyState}>
                 <MaterialIcons name="search-off" size={64} color={Colors.outline} />
                 <Text style={styles.emptyTitle}>Belum ada produk di kategori ini</Text>
@@ -355,6 +357,16 @@ export default function HomeScreen(): React.JSX.Element {
                 ))}
               </View>
             )
+          ) : isHomeLoading ? (
+            <LoadingCard label="Memuat florist..." />
+          ) : homeError ? (
+            <ErrorCard message={homeError} onRetry={reloadHome} />
+          ) : florists.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="storefront" size={64} color={Colors.outline} />
+              <Text style={styles.emptyTitle}>Belum ada florist</Text>
+              <Text style={styles.emptyText}>Belum ada toko florist yang terdaftar.</Text>
+            </View>
           ) : (
             <View style={styles.floristList}>
               {florists.map((florist) => (
@@ -435,13 +447,46 @@ function TabButton({
   );
 }
 
+function LoadingCard({ label }: { label: string }): React.JSX.Element {
+  return (
+    <View style={styles.emptyState}>
+      <ActivityIndicator color={Colors.primary} />
+      <Text style={styles.emptyText}>{label}</Text>
+    </View>
+  );
+}
+
+function ErrorCard({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}): React.JSX.Element {
+  return (
+    <View style={styles.emptyState}>
+      <MaterialIcons name="cloud-off" size={56} color={Colors.outline} />
+      <Text style={styles.emptyTitle}>Gagal Memuat Data</Text>
+      <Text style={styles.emptyText}>{message}</Text>
+      <TouchableOpacity
+        style={styles.retryButton}
+        onPress={onRetry}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Coba lagi">
+        <Text style={styles.retryLabel}>Coba Lagi</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function ProductCard({
   product,
   isSaved,
   onPress,
   onToggleSaved,
 }: {
-  product: ProductRecord;
+  product: HomeProduct;
   isSaved: boolean;
   onPress: () => void;
   onToggleSaved: (productId: number) => void;
@@ -454,12 +499,18 @@ function ProductCard({
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.cardImageWrap}>
-        <Image
-          source={{ uri: product.images[0]?.imageUrl }}
-          style={styles.cardImage}
-          contentFit="cover"
-          transition={200}
-        />
+        {product.imageUrl ? (
+          <Image
+            source={{ uri: product.imageUrl }}
+            style={styles.cardImage}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          <View style={styles.cardImageFallback}>
+            <MaterialIcons name="local-florist" size={48} color={Colors.outline} />
+          </View>
+        )}
         <TouchableOpacity
           style={styles.favoriteButton}
           onPress={handleFavoritePress}
@@ -482,7 +533,7 @@ function ProductCard({
         <View style={styles.cardFloristRow}>
           <MaterialIcons name="verified" size={16} color={Colors.secondary} />
           <Text style={styles.cardFlorist} numberOfLines={1}>
-            {product.store.name}
+            {product.store?.name ?? 'Flowera Partner'}
           </Text>
         </View>
 
@@ -498,10 +549,12 @@ function ProductCard({
           <View style={styles.cardLocation}>
             <MaterialIcons name="location-on" size={14} color={Colors.outline} />
             <Text style={styles.cardFooterText} numberOfLines={1}>
-              {product.store.city}
+              {product.store?.city ?? 'Lokasi belum tersedia'}
             </Text>
           </View>
-          <Text style={styles.cardFooterText}>Stok {product.stock}</Text>
+          <Text style={styles.cardFooterText}>
+            {product.isLifeFlower ? 'Bunga segar' : 'Bunga artifisial'}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -512,20 +565,26 @@ function FloristCard({
   florist,
   onVisit,
 }: {
-  florist: ProductStore;
+  florist: HomeStore;
   onVisit: () => void;
 }): React.JSX.Element {
   return (
     <View style={styles.floristCard}>
       <View style={styles.floristHeader}>
         <View style={styles.floristAvatar}>
-          <MaterialIcons name="storefront" size={30} color={Colors.primary} />
+          {florist.logoUrl ? (
+            <Image
+              source={{ uri: florist.logoUrl }}
+              style={styles.floristAvatarImage}
+              contentFit="cover"
+            />
+          ) : (
+            <MaterialIcons name="storefront" size={30} color={Colors.primary} />
+          )}
         </View>
         <View style={styles.floristInfo}>
           <Text style={styles.floristName}>{florist.name}</Text>
-          <Text style={styles.floristLocation}>
-            {florist.city} • Dekat Anda away
-          </Text>
+          <Text style={styles.floristLocation}>{florist.city} • Mitra Flowera</Text>
         </View>
       </View>
       <TouchableOpacity style={styles.floristButton} onPress={onVisit} activeOpacity={0.85}>
@@ -555,16 +614,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 199,
     height: 28,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.full,
-    borderWidth: 2,
-    borderColor: Colors.primaryContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceContainerLow,
   },
 
   scrollView: {
@@ -667,6 +716,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.primary,
   },
+    searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 193, 197, 0.5)',
+    backgroundColor: Colors.surfaceContainerLowest,
+  },
+  searchInput: {
+    flex: 1,
+    padding: 0,
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    color: Colors.onSurface,
+  },
   chipsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -749,6 +816,11 @@ const styles = StyleSheet.create({
   cardImage: {
     width: '100%',
     height: '100%',
+  },
+  cardImageFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   favoriteButton: {
     position: 'absolute',
@@ -846,10 +918,9 @@ const styles = StyleSheet.create({
     color: Colors.onSurfaceVariant,
     textAlign: 'center',
   },
-
   retryButton: {
     marginTop: 4,
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: Radius.full,
     backgroundColor: Colors.primary,
@@ -886,6 +957,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.surfaceContainerLow,
+  },
+  floristAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: Radius.full,
   },
   floristInfo: {
     flex: 1,

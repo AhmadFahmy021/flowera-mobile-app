@@ -17,6 +17,7 @@ import FormField from '@/components/auth/form-field';
 import PrimaryButton from '@/components/auth/primary-button';
 import { Colors, Fonts, MarginMobile, Radius, ShadowSoft, StackMd } from '@/constants/theme';
 import { getAccountsSnapshot, subscribeToAccounts, type SavedAccount } from '@/data/auth/accounts';
+import { setSession } from '@/data/auth/session';
 import { Image } from 'expo-image';
 
 export type { SavedAccount };
@@ -57,6 +58,12 @@ export default function LoginScreen(): React.JSX.Element {
 
     const matchedAccount = savedAccounts.find(
       (acc) => acc.email.toLowerCase() === email.trim().toLowerCase() && acc.pass === password
+    );
+
+    setSession(
+      matchedAccount
+        ? { name: matchedAccount.name, email: matchedAccount.email, role: matchedAccount.role }
+        : { name: email.trim().split('@')[0], email: email.trim(), role: 'Customer' }
     );
 
     const greeting = matchedAccount

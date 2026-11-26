@@ -62,7 +62,7 @@ export default function HomeScreen(): React.JSX.Element {
   const { session } = useAuth();
   const isAuthenticated = session !== null;
 
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const catalogOffset = useRef<number>(0);
   const [translateX] = useState(() => new Animated.Value(0));
 
@@ -162,7 +162,7 @@ export default function HomeScreen(): React.JSX.Element {
       return;
     }
     if (key === 'orders') {
-      router.push('/order');
+      router.push('/test');
       return;
     }
     router.push('/profile');

@@ -15,9 +15,10 @@ import FormField from '@/components/auth/form-field';
 import PasswordStrength from '@/components/auth/password-strength';
 import PrimaryButton from '@/components/auth/primary-button';
 import { Colors, Fonts, MarginMobile, StackMd } from '@/constants/theme';
-import { addAccount } from '@/data/auth/accounts';
+import { useAuth } from '@/contexts/auth-context';
 import {
   normalizeEmail,
+  normalizePhoneNumber,
   validateEmail,
   validateName,
   validatePassword,
@@ -34,6 +35,7 @@ interface FieldErrors {
 
 export default function RegisterScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const { signUp } = useAuth();
 
   const [name, setName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -76,12 +78,22 @@ export default function RegisterScreen(): React.JSX.Element {
     setFormError(null);
     setSubmitting(true);
     try {
-      const account = addAccount({ name, email: normalizeEmail(email), pass: password });
-      if (!account) {
-        setFormError('Email sudah terdaftar. Silakan masuk atau pakai email lain.');
+      const { needsEmailConfirmation } = await signUp({
+        name,
+        phoneNumber: normalizePhoneNumber(phoneNumber),
+        email: normalizeEmail(email),
+        password,
+      });
+
+      if (needsEmailConfirmation) {
+        setFormError(
+          'Registrasi berhasil. Cek email kamu untuk konfirmasi sebelum masuk.'
+        );
         return;
       }
-      router.replace({ pathname: '/login', params: { registered: '1' } });
+
+      // Sesi langsung terbentuk, guard akan mengarahkan ke halaman utama.
+      router.replace('/home');
     } catch (e) {
       setFormError(e instanceof Error ? e.message : 'Registrasi gagal');
     } finally {

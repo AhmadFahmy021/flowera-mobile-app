@@ -28,6 +28,7 @@ import {
   StackLg,
   StackMd,
 } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
 import type { HomeProduct, HomeStore } from '@/data/home/api';
 import { useCategoryProducts, useHomeData } from '@/data/home/use-home-data';
 import { HERO_SLIDES } from '@/data/products/catalog';
@@ -58,6 +59,8 @@ const NO_PRODUCTS: HomeProduct[] = [];
 export default function HomeScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
+  const { session } = useAuth();
+  const isAuthenticated = session !== null;
 
   const scrollRef = useRef<ScrollView>(null);
   const catalogOffset = useRef<number>(0);
@@ -149,13 +152,13 @@ export default function HomeScreen(): React.JSX.Element {
     Alert.alert('Custom Bouquet', 'Fitur custom bouquet belum tersedia di aplikasi.');
   };
 
-  const handleOpenOrders = (): void => {
-    Alert.alert('Pesanan', 'Halaman pesanan belum tersedia.');
-  };
-
   const handleNavPress = (key: NavItem['key']): void => {
     if (key === 'home') {
       scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+    if (!isAuthenticated) {
+      router.push('/login');
       return;
     }
     if (key === 'orders') {

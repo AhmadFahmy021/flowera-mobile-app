@@ -1,7 +1,14 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
-import React, { useState, useSyncExternalStore } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -14,11 +21,7 @@ import {
   StackMd,
   StackSm,
 } from '@/constants/theme';
-import {
-  getSessionSnapshot,
-  setSession,
-  subscribeToSession,
-} from '@/data/auth/session';
+import { roleLabel, useAuth } from '@/contexts/auth-context';
 
 type InfoRow = {
   icon: keyof typeof MaterialIcons.glyphMap;
@@ -28,11 +31,10 @@ type InfoRow = {
 
 export default function ProfileScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const user = useSyncExternalStore(
-    subscribeToSession,
-    getSessionSnapshot,
-    getSessionSnapshot
-  );
+  const { user, profile, signOut } = useAuth();
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   const handleBack = (): void => {
     if (router.canGoBack()) {
@@ -42,17 +44,34 @@ export default function ProfileScreen(): React.JSX.Element {
     router.replace('/home');
   };
 
-  const [confirmingLogout, setConfirmingLogout] = useState(false);
-
-  const handleLogout = (): void => {
-    setSession(null);
-    router.replace('/login');
+  const handleLogout = async (): Promise<void> => {
+    setLogoutError(null);
+    setSigningOut(true);
+    try {
+      await signOut();
+      // Guard di _layout otomatis mengalihkan ke /login setelah sesi hilang.
+      router.replace('/login');
+    } catch (error) {
+      setLogoutError(
+        error instanceof Error ? error.message : 'Gagal keluar. Silakan coba lagi.'
+      );
+      setSigningOut(false);
+    }
   };
+
+  const displayName = profile?.name ?? user?.email?.split('@')[0] ?? 'Pengguna';
+  const displayEmail = user?.email ?? '-';
+  const displayRole = profile ? roleLabel(profile.role) : 'Customer';
 
   const infoRows: InfoRow[] = user
     ? [
-        { icon: 'mail', label: 'Email', value: user.email },
-        { icon: 'badge', label: 'Peran', value: user.role },
+        { icon: 'mail', label: 'Email', value: displayEmail },
+        { icon: 'badge', label: 'Peran', value: displayRole },
+        {
+          icon: 'call',
+          label: 'Nomor Telepon',
+          value: profile?.phone_number ?? 'Belum diisi',
+        },
         { icon: 'verified-user', label: 'Status', value: 'Aktif' },
       ]
     : [];
@@ -84,15 +103,15 @@ export default function ProfileScreen(): React.JSX.Element {
             <View style={styles.card}>
               <View style={styles.avatar}>
                 <MaterialIcons
-                  name={user.role === 'Florist' ? 'storefront' : 'person'}
+                  name={profile?.role === 'seller' ? 'storefront' : 'person'}
                   size={36}
                   color={Colors.primary}
                 />
               </View>
-              <Text style={styles.name}>{user.name}</Text>
-              <Text style={styles.email}>{user.email}</Text>
+              <Text style={styles.name}>{displayName}</Text>
+              <Text style={styles.email}>{displayEmail}</Text>
               <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeLabel}>{user.role}</Text>
+                <Text style={styles.roleBadgeLabel}>{displayRole}</Text>
               </View>
             </View>
 
@@ -118,6 +137,10 @@ export default function ProfileScreen(): React.JSX.Element {
               </View>
             </View>
 
+            {logoutError ? (
+              <Text style={styles.logoutError}>{logoutError}</Text>
+            ) : null}
+
             {confirmingLogout ? (
               <View style={styles.confirmCard}>
                 <Text style={styles.confirmText}>Keluar dari akun ini?</Text>
@@ -125,6 +148,7 @@ export default function ProfileScreen(): React.JSX.Element {
                   <TouchableOpacity
                     style={[styles.confirmButton, styles.cancelButton]}
                     onPress={() => setConfirmingLogout(false)}
+                    disabled={signingOut}
                     activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel="Batal keluar">
@@ -133,10 +157,15 @@ export default function ProfileScreen(): React.JSX.Element {
                   <TouchableOpacity
                     style={[styles.confirmButton, styles.confirmLogoutButton]}
                     onPress={handleLogout}
+                    disabled={signingOut}
                     activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel="Konfirmasi keluar">
-                    <Text style={styles.confirmLogoutLabel}>Ya, keluar</Text>
+                    {signingOut ? (
+                      <ActivityIndicator color={Colors.onError} />
+                    ) : (
+                      <Text style={styles.confirmLogoutLabel}>Ya, keluar</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -311,6 +340,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(215, 193, 197, 0.35)',
   },
 
+  logoutError: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.error,
+    textAlign: 'center',
+  },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',

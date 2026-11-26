@@ -1,8 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Image } from 'expo-image';
 import { Link, router, useLocalSearchParams } from 'expo-router';
-import React, { useState, useSyncExternalStore } from 'react';
+import React, { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,63 +16,65 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FormField from '@/components/auth/form-field';
 import PrimaryButton from '@/components/auth/primary-button';
 import { Colors, Fonts, MarginMobile, Radius, ShadowSoft, StackMd } from '@/constants/theme';
-import { getAccountsSnapshot, subscribeToAccounts, type SavedAccount } from '@/data/auth/accounts';
-import { setSession } from '@/data/auth/session';
-import { Image } from 'expo-image';
-
-export type { SavedAccount };
+import { useAuth } from '@/contexts/auth-context';
+import { normalizeEmail, validateEmail } from '@/data/auth/validation';
 
 export default function LoginScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { registered } = useLocalSearchParams<{ registered?: string }>();
-
-  const savedAccounts = useSyncExternalStore(
-    subscribeToAccounts,
-    getAccountsSnapshot,
-    getAccountsSnapshot
-  );
+  const { signIn, resetPassword } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
 
-  const handleSelectAccount = (account: SavedAccount): void => {
-    setEmail(account.email);
-    setPassword(account.pass);
-    setErrorMessage('');
-  };
-
-  const validateLoginForm = (inputEmail: string, inputPass: string): boolean => {
-    if (!inputEmail.trim() || !inputPass.trim()) {
-      setErrorMessage('Email dan password wajib diisi.');
-      return false;
+  const handleLoginSubmit = async (): Promise<void> => {
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setErrorMessage(emailError);
+      return;
     }
-    setErrorMessage('');
-    return true;
-  };
-
-  const handleLoginSubmit = (): void => {
-    if (!validateLoginForm(email, password)) {
+    if (password.length === 0) {
+      setErrorMessage('Password wajib diisi.');
       return;
     }
 
-    const matchedAccount = savedAccounts.find(
-      (acc) => acc.email.toLowerCase() === email.trim().toLowerCase() && acc.pass === password
-    );
+    setErrorMessage('');
+    setSubmitting(true);
+    try {
+      await signIn(normalizeEmail(email), password);
+      router.replace('/home');
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Gagal masuk. Silakan coba lagi.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    setSession(
-      matchedAccount
-        ? { name: matchedAccount.name, email: matchedAccount.email, role: matchedAccount.role }
-        : { name: email.trim().split('@')[0], email: email.trim(), role: 'Customer' }
-    );
+  const handleForgotPassword = async (): Promise<void> => {
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setErrorMessage('Isi email kamu dulu, lalu tekan "Lupa Password?" lagi.');
+      return;
+    }
 
-    const greeting = matchedAccount
-      ? `Selamat datang kembali, ${matchedAccount.name}!\n\nEmail: ${matchedAccount.email}\nPeran: ${matchedAccount.role}`
-      : `Berhasil masuk dengan akun:\n${email.trim()}`;
-
-    Alert.alert('Login Berhasil ', greeting);
-
-    router.replace('/home');
+    setErrorMessage('');
+    setSendingReset(true);
+    try {
+      await resetPassword(normalizeEmail(email));
+      setInfoMessage(`Tautan reset password sudah dikirim ke ${normalizeEmail(email)}.`);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Gagal mengirim tautan reset password.'
+      );
+    } finally {
+      setSendingReset(false);
+    }
   };
 
   return (
@@ -111,20 +113,16 @@ export default function LoginScreen(): React.JSX.Element {
             ) : null}
 
             {errorMessage ? (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 8,
-                  backgroundColor: '#FFDAD6',
-                  borderRadius: 12,
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                }}>
+              <View style={styles.errorBanner}>
                 <MaterialIcons name="error-outline" size={20} color={Colors.error} />
-                <Text style={{ fontFamily: Fonts.body, fontSize: 13, color: Colors.error }}>
-                  {errorMessage}
-                </Text>
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              </View>
+            ) : null}
+
+            {infoMessage ? (
+              <View style={styles.infoBanner}>
+                <MaterialIcons name="mark-email-read" size={20} color={Colors.primary} />
+                <Text style={styles.infoText}>{infoMessage}</Text>
               </View>
             ) : null}
 
@@ -147,39 +145,29 @@ export default function LoginScreen(): React.JSX.Element {
                 secureTextEntry
               />
 
-              <TouchableOpacity style={styles.forgotButton} activeOpacity={0.7}>
-                <Text style={styles.forgotText}>Lupa Password?</Text>
+              <TouchableOpacity
+                style={styles.forgotButton}
+                activeOpacity={0.7}
+                disabled={sendingReset}
+                onPress={handleForgotPassword}>
+                <Text style={styles.forgotText}>
+                  {sendingReset ? 'Mengirim...' : 'Lupa Password?'}
+                </Text>
               </TouchableOpacity>
 
-              <PrimaryButton label="Masuk" onPress={handleLoginSubmit} />
+              <PrimaryButton
+                label="Masuk"
+                onPress={handleLoginSubmit}
+                loading={submitting}
+              />
             </View>
 
-            <View style={styles.quickSection}>
-              <Text style={[{ fontFamily: Fonts.bodySemiBold, fontSize: 13, color: Colors.outline }]}>
-                Pilih Akun Terdaftar:
+            <View style={styles.hintCard}>
+              <MaterialIcons name="info-outline" size={18} color={Colors.primary} />
+              <Text style={styles.hintText}>
+                Sesi login disimpan aman di perangkat, jadi kamu tidak perlu masuk
+                ulang setiap membuka aplikasi.
               </Text>
-
-              <View style={styles.quickList}>
-                {savedAccounts.map((account: SavedAccount) => (
-                  <TouchableOpacity
-                    key={account.id}
-                    style={[
-                      styles.quickCard,
-                      { backgroundColor: account.badgeColor },
-                    ]}
-                    onPress={() => handleSelectAccount(account)}
-                    activeOpacity={0.7}>
-                    <View style={styles.quickCardHeader}>
-                      <MaterialIcons name={account.icon} size={18} color={Colors.primary} />
-                      <Text style={[styles.quickRole, { color: Colors.primary }]}>
-                        {account.role}
-                      </Text>
-                    </View>
-                    <Text style={styles.quickName}>{account.name}</Text>
-                    <Text style={styles.quickEmail}>{account.email}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
 
             <Text style={styles.footer}>
@@ -219,21 +207,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  logoBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-    ...ShadowSoft,
-  },
-  brandTitle: {
-    fontFamily: Fonts.headline,
-    fontSize: 32,
-    color: Colors.primary,
-  },
   title: {
     fontFamily: Fonts.headlineMedium,
     fontSize: 22,
@@ -263,6 +236,36 @@ const styles = StyleSheet.create({
     color: Colors.onSecondary,
     flex: 1,
   },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.errorContainer,
+    borderRadius: Radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  errorText: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.error,
+    flex: 1,
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.primaryContainer,
+    borderRadius: Radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  infoText: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.onPrimaryContainer,
+    flex: 1,
+  },
   form: {
     gap: 16,
   },
@@ -276,41 +279,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.primary,
   },
-  quickSection: {
-    marginTop: 8,
-    gap: 10,
-  },
-  quickList: {
+  hintCard: {
     flexDirection: 'row',
-    gap: 10,
-  },
-  quickCard: {
-    flex: 1,
+    alignItems: 'center',
+    gap: 8,
     padding: 12,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.outlineVariant,
+    borderColor: 'rgba(215, 193, 197, 0.35)',
+    backgroundColor: Colors.surfaceContainerLowest,
+    ...ShadowSoft,
   },
-  quickCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  quickRole: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: 11,
-  },
-  quickName: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: 13,
-    color: Colors.onSurface,
-  },
-  quickEmail: {
+  hintText: {
+    flex: 1,
     fontFamily: Fonts.body,
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 18,
     color: Colors.onSurfaceVariant,
-    marginTop: 2,
   },
   footer: {
     fontFamily: Fonts.body,

@@ -1,196 +1,129 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Link, router, useLocalSearchParams } from 'expo-router';
-import React, { useState, useSyncExternalStore } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { router } from 'expo-router';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import FormField from '@/components/auth/form-field';
-import PrimaryButton from '@/components/auth/primary-button';
-import { Colors, Fonts, MarginMobile, Radius, ShadowSoft, StackMd } from '@/constants/theme';
-import { getAccountsSnapshot, subscribeToAccounts, type SavedAccount } from '@/data/auth/accounts';
-import { setSession } from '@/data/auth/session';
-import { Image } from 'expo-image';
+import {
+  Colors,
+  Fonts,
+  MarginMobile,
+  Radius,
+  ShadowSoft,
+  StackLg,
+  StackMd,
+  StackSm,
+} from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
 
-export type { SavedAccount };
+interface OrderStep {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  title: string;
+  description: string;
+}
 
-export default function LoginScreen(): React.JSX.Element {
+const ORDER_STEPS: OrderStep[] = [
+  {
+    icon: 'shopping-basket',
+    title: 'Pilih bunga favoritmu',
+    description: 'Jelajahi katalog dan tambahkan produk ke keranjang.',
+  },
+  {
+    icon: 'local-shipping',
+    title: 'Tentukan pengiriman',
+    description: 'Isi alamat dan jadwal kirim sesuai kebutuhan.',
+  },
+  {
+    icon: 'payments',
+    title: 'Selesaikan pembayaran',
+    description: 'Bayar dengan metode favoritmu, pesanan langsung diproses.',
+  },
+];
+
+export default function OrderScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { registered } = useLocalSearchParams<{ registered?: string }>();
+  const { user, profile } = useAuth();
 
-  const savedAccounts = useSyncExternalStore(
-    subscribeToAccounts,
-    getAccountsSnapshot,
-    getAccountsSnapshot
-  );
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-
-  const handleSelectAccount = (account: SavedAccount): void => {
-    setEmail(account.email);
-    setPassword(account.pass);
-    setErrorMessage('');
-  };
-
-  const validateLoginForm = (inputEmail: string, inputPass: string): boolean => {
-    if (!inputEmail.trim() || !inputPass.trim()) {
-      setErrorMessage('Email dan password wajib diisi.');
-      return false;
-    }
-    setErrorMessage('');
-    return true;
-  };
-
-  const handleLoginSubmit = (): void => {
-    if (!validateLoginForm(email, password)) {
+  const handleBack = (): void => {
+    if (router.canGoBack()) {
+      router.back();
       return;
     }
-
-    const matchedAccount = savedAccounts.find(
-      (acc) => acc.email.toLowerCase() === email.trim().toLowerCase() && acc.pass === password
-    );
-
-    setSession(
-      matchedAccount
-        ? { name: matchedAccount.name, email: matchedAccount.email, role: matchedAccount.role }
-        : { name: email.trim().split('@')[0], email: email.trim(), role: 'Customer' }
-    );
-
-    const greeting = matchedAccount
-      ? `Selamat datang kembali, ${matchedAccount.name}!\n\nEmail: ${matchedAccount.email}\nPeran: ${matchedAccount.role}`
-      : `Berhasil masuk dengan akun:\n${email.trim()}`;
-
-    Alert.alert('Login Berhasil ', greeting);
-
     router.replace('/home');
   };
 
   return (
-    <View
-      style={[
-        styles.screen,
-        { paddingTop: Math.max(insets.top, 24), paddingBottom: Math.max(insets.bottom, 24) },
-      ]}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
-          <View style={styles.content}>
-            <View style={styles.header}>
-              <Image
-                source={require('../../assets/images/logo.png')}
-                style={styles.logo}
-                contentFit="contain"
-              />
-              <Text style={styles.title}>Selamat Datang Kembali</Text>
-              <Text style={styles.subtitle}>
-                Masuk ke akun kamu untuk melanjutkan belanja bunga segar.
-              </Text>
-            </View>
+    <View style={styles.screen}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleBack}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Kembali">
+          <MaterialIcons name="arrow-back" size={22} color={Colors.onSurface} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Pesanan Saya</Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
-            {registered === '1' ? (
-              <View style={styles.successBanner}>
-                <MaterialIcons name="check-circle" size={20} color={Colors.onSecondary} />
-                <Text style={styles.successText}>
-                  Registrasi berhasil. Silakan masuk dengan akun kamu.
-                </Text>
-              </View>
-            ) : null}
-
-            {errorMessage ? (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 8,
-                  backgroundColor: '#FFDAD6',
-                  borderRadius: 12,
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                }}>
-                <MaterialIcons name="error-outline" size={20} color={Colors.error} />
-                <Text style={{ fontFamily: Fonts.body, fontSize: 13, color: Colors.error }}>
-                  {errorMessage}
-                </Text>
-              </View>
-            ) : null}
-
-            <View style={styles.form}>
-              <FormField
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="nama@email.com"
-                icon="mail"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-              <FormField
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Masukkan password"
-                icon="lock"
-                secureTextEntry
-              />
-
-              <TouchableOpacity style={styles.forgotButton} activeOpacity={0.7}>
-                <Text style={styles.forgotText}>Lupa Password?</Text>
-              </TouchableOpacity>
-
-              <PrimaryButton label="Masuk" onPress={handleLoginSubmit} />
-            </View>
-
-            <View style={styles.quickSection}>
-              <Text style={[{ fontFamily: Fonts.bodySemiBold, fontSize: 13, color: Colors.outline }]}>
-                Pilih Akun Terdaftar:
-              </Text>
-
-              <View style={styles.quickList}>
-                {savedAccounts.map((account: SavedAccount) => (
-                  <TouchableOpacity
-                    key={account.id}
-                    style={[
-                      styles.quickCard,
-                      { backgroundColor: account.badgeColor },
-                    ]}
-                    onPress={() => handleSelectAccount(account)}
-                    activeOpacity={0.7}>
-                    <View style={styles.quickCardHeader}>
-                      <MaterialIcons name={account.icon} size={18} color={Colors.primary} />
-                      <Text style={[styles.quickRole, { color: Colors.primary }]}>
-                        {account.role}
-                      </Text>
-                    </View>
-                    <Text style={styles.quickName}>{account.name}</Text>
-                    <Text style={styles.quickEmail}>{account.email}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <Text style={styles.footer}>
-              Belum punya akun?{' '}
-              <Link href="./register" style={styles.link}>
-                Daftar sekarang
-              </Link>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(insets.bottom, 0) + StackMd },
+        ]}
+        showsVerticalScrollIndicator={false}>
+        <View style={styles.greetingCard}>
+          <View style={styles.avatar}>
+            <MaterialIcons name="person" size={30} color={Colors.primary} />
+          </View>
+          <View style={styles.greetingText}>
+            <Text style={styles.greetingLabel}>Masuk sebagai</Text>
+            <Text style={styles.greetingValue} numberOfLines={1}>
+              {profile?.name ?? user?.email ?? 'Pengguna Flowera'}
+            </Text>
+            <Text style={styles.greetingEmail} numberOfLines={1}>
+              {user?.email ?? '-'}
             </Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </View>
+
+        <View style={styles.emptyState}>
+          <MaterialIcons name="receipt-long" size={56} color={Colors.outline} />
+          <Text style={styles.emptyTitle}>Belum ada pesanan</Text>
+          <Text style={styles.emptyText}>
+            Semua pesanan yang kamu buat akan muncul di halaman ini.
+          </Text>
+          <TouchableOpacity
+            style={styles.primaryAction}
+            onPress={() => router.replace('/home')}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Mulai belanja">
+            <Text style={styles.primaryActionLabel}>Mulai Belanja</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Cara Memesan</Text>
+          <View style={styles.stepList}>
+            {ORDER_STEPS.map((step, index) => (
+              <View key={step.title} style={styles.stepRow}>
+                <View style={styles.stepIcon}>
+                  <MaterialIcons name={step.icon} size={18} color={Colors.primary} />
+                </View>
+                <View style={styles.stepText}>
+                  <Text style={styles.stepTitle}>
+                    {index + 1}. {step.title}
+                  </Text>
+                  <Text style={styles.stepDescription}>{step.description}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -200,132 +133,157 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  flex: {
-    flex: 1,
-  },
-  scroll: {
-    flexGrow: 1,
-    justifyContent: 'flex-start',
-    paddingHorizontal: MarginMobile,
-    paddingTop: 40,
-  },
-  content: {
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-    gap: StackMd,
-  },
   header: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  logoBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-    ...ShadowSoft,
-  },
-  brandTitle: {
-    fontFamily: Fonts.headline,
-    fontSize: 32,
-    color: Colors.primary,
-  },
-  title: {
-    fontFamily: Fonts.headlineMedium,
-    fontSize: 22,
-    color: Colors.onSurface,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  subtitle: {
-    fontFamily: Fonts.body,
-    fontSize: 14,
-    color: Colors.onSurfaceVariant,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  successBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: Colors.secondary,
-    borderRadius: Radius.md,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  successText: {
-    fontFamily: Fonts.body,
-    fontSize: 13,
-    color: Colors.onSecondary,
-    flex: 1,
-  },
-  form: {
-    gap: 16,
-  },
-  forgotButton: {
-    alignSelf: 'flex-end',
-    marginTop: -4,
-    marginBottom: 4,
-  },
-  forgotText: {
-    fontFamily: Fonts.bodyMedium,
-    fontSize: 13,
-    color: Colors.primary,
-  },
-  quickSection: {
-    marginTop: 8,
-    gap: 10,
-  },
-  quickList: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  quickCard: {
-    flex: 1,
-    padding: 12,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-  },
-  quickCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    gap: 16,
+    paddingHorizontal: MarginMobile,
+    paddingBottom: 12,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(215, 193, 197, 0.35)',
   },
-  quickRole: {
-    fontFamily: Fonts.bodyBold,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  headerTitle: {
+    fontFamily: Fonts.headlineMedium,
+    fontSize: 20,
+    color: Colors.onSurface,
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: MarginMobile,
+    paddingTop: StackMd,
+    gap: StackMd,
+  },
+  greetingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: StackMd,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surfaceContainerLowest,
+    ...ShadowSoft,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceContainer,
+  },
+  greetingText: {
+    flex: 1,
+    gap: 2,
+  },
+  greetingLabel: {
+    fontFamily: Fonts.body,
     fontSize: 11,
+    color: Colors.outline,
   },
-  quickName: {
+  greetingValue: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 15,
+    color: Colors.onSurface,
+  },
+  greetingEmail: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: Colors.onSurfaceVariant,
+  },
+  emptyState: {
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: StackMd,
+    paddingVertical: StackLg,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 193, 197, 0.35)',
+    backgroundColor: Colors.surfaceContainerLowest,
+    ...ShadowSoft,
+  },
+  emptyTitle: {
+    fontFamily: Fonts.headlineMedium,
+    fontSize: 18,
+    color: Colors.onSurface,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.onSurfaceVariant,
+    textAlign: 'center',
+  },
+  primaryAction: {
+    marginTop: 8,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
+  },
+  primaryActionLabel: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: 14,
+    color: Colors.onPrimary,
+  },
+  section: {
+    gap: StackSm,
+  },
+  sectionTitle: {
+    fontFamily: Fonts.headlineMedium,
+    fontSize: 20,
+    color: Colors.onSurface,
+  },
+  stepList: {
+    gap: 12,
+    padding: StackMd,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 193, 197, 0.35)',
+    backgroundColor: Colors.surfaceContainerLowest,
+    ...ShadowSoft,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  stepIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceContainer,
+  },
+  stepText: {
+    flex: 1,
+    gap: 2,
+  },
+  stepTitle: {
     fontFamily: Fonts.bodySemiBold,
     fontSize: 13,
     color: Colors.onSurface,
   },
-  quickEmail: {
+  stepDescription: {
     fontFamily: Fonts.body,
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 18,
     color: Colors.onSurfaceVariant,
-    marginTop: 2,
-  },
-  footer: {
-    fontFamily: Fonts.body,
-    fontSize: 14,
-    color: Colors.onSurfaceVariant,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  link: {
-    fontFamily: Fonts.bodyBold,
-    color: Colors.primary,
-  },
-  logo: {
-    height: 28,
-    width: 198,
-    marginBottom: 12,
   },
 });
